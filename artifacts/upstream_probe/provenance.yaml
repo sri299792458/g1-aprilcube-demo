@@ -1,0 +1,30 @@
+generated_at: "2026-07-18T09:07:51-05:00"
+purpose: upstream-only Unitree G1 input/output and frame-contract probe
+
+source:
+  graspgenx:
+    url: https://github.com/NVlabs/GraspGenX.git
+    commit: b9429097728cb1c430dd78b92edf17ba318aad03
+  checkpoints:
+    url: https://huggingface.co/adithyamurali/GraspGenXModel
+    commit: 7c834043c11a11417e31d6d5ea9355801e40a2c1
+    version_directory: release
+  gripper_descriptions:
+    url: https://huggingface.co/datasets/adithyamurali/gripper_descriptions
+    commit: 19a03c00d19aeaf052d0f6801f0041982d676e8a
+    gripper: unitree_g1
+
+input:
+  mesh: third_party/GraspGenX/assets/sample_data/object_mesh/box.obj
+  mesh_sha256: e3e1d83133699cedc5981de1aa8456c7168715324624d851bf66bb3c058f9a3d
+  mesh_extents_m: [0.10, 0.10, 0.10]
+  sampled_points: 3500
+
+generation:
+  requested_grasps_per_pass: 80
+  retained_per_pass: 20
+  passes_until_minimum: 2
+  saved_candidates: 40
+  highest_saved_confidence: 0.7373546361923218
+  output_sha256: 4eef34b8adfd16ffb4f71a30f4327ba6f53c887eff486156d9524faf1c48cf9f
+  note: GraspGenX inference is stochastic; the committed YAML is one observed run.

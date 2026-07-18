@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# GraspGenX manages model and gripper assets under ext/. They are large,
+# reproducible external data and must not become project source.
+third_party/GraspGenX/ext/
