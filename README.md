@@ -146,16 +146,26 @@ exact revisions and input hash used for the committed images.
 
 ## Phase gate
 
-The full current-right-Dex3 contact atlases defined in
+The authoritative current-right-Dex3 contact atlases defined in
 [the implementation specification](docs/dex3_aprilcube_grasp_atlas_spec.md)
-are complete for the cube, T, and U: 4,096 unchanged GraspGenX diffusion
-proposals per object were physics-tested and grouped by coarse body-level
-contact. Sequential videos show the family representatives; their camera-rerun
-verdicts are diagnostics, not a second grasp-qualification gate.
+are complete for the cube, T, and U. Each contains 4,096 unchanged GraspGenX
+diffusion proposals qualified with the executed Isaac/PhysX and finger-control
+contract from GR00T-VisualSim2Real commit `92bf086`, then grouped by coarse
+body-level contact:
 
-[Cube review](docs/assets/dex3_cube_grasp_families_right.mp4) ·
-[T review](docs/assets/dex3_t_body_grasp_families_right.mp4) ·
-[U review](docs/assets/dex3_u_legs_grasp_families_right.mp4)
+| Object | Isaac PASS | PASS rate | Contact families |
+|---|---:|---:|---:|
+| 45 mm cube | 2,437 / 4,096 | 59.50% | 40 |
+| T body | 1,240 / 4,096 | 30.27% | 39 |
+| U legs | 675 / 4,096 | 16.48% | 28 |
+
+The sequential videos show one primary representative per family. A replay
+failure remains visibly labeled as a diagnostic; it does not rewrite the
+original 256-environment qualification verdict.
+
+[Cube VIRAL-profile review](docs/assets/dex3_cube_grasp_families_right_viral.mp4) ·
+[T VIRAL-profile review](docs/assets/dex3_t_body_grasp_families_right_viral.mp4) ·
+[U VIRAL-profile review](docs/assets/dex3_u_legs_grasp_families_right_viral.mp4)
 
 Left-hand qualification is intentionally deferred. Table placement, arm IK,
 scene-aware approach planning, and execution remain separate subsequent gates.

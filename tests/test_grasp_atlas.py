@@ -150,6 +150,17 @@ def test_family_signature_uses_the_physics_qualified_final_phase():
     assert signature["digit_chains"] == ["index", "thumb"]
 
 
+def test_body_pair_scalar_prevents_vector_cancellation_from_erasing_contact():
+    phase = make_phase("after_tug_5_final")
+    thumb = phase["contacts"][0]
+    thumb["net_normal_force_world_N"] = [0.0, 0.0, 0.0]
+    thumb["contact_force_magnitude_N"] = 0.75
+    index = phase["contacts"][1]
+    index["contact_force_magnitude_N"] = 0.0
+
+    assert sorted(atlas.coarse_phase_contacts(phase, "right")) == ["thumb"]
+
+
 def test_raw_transform_is_unchanged_for_both_exact_hands(tmp_path):
     raw = {
         "format": "isaac_grasp",

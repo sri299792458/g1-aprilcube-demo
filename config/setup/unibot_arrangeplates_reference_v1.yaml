@@ -1,0 +1,98 @@
+schema_version: 1
+reference_id: unibot_arrangeplates_episode0_start_v1
+status: reference_only_pending_dex3_scene_review
+
+source:
+  collection: https://huggingface.co/collections/unitreerobotics/unibot-v1-challenge
+  dataset: unitreerobotics/G1_Dex1_ArrangePlates
+  dataset_revision: fa923e520b67fe84ae5f836ae38d22e892606569
+  robot_type: unitree_g1
+  end_effector: dex1_two_finger
+  fps: 30
+  collection_scope:
+    datasets: 32
+    episodes: 33276
+    frames: 18282246
+
+# A single state that physically occurred is retained instead of constructing
+# a coordinate-wise median state that may never have existed.
+observed_start_state:
+  episode_index: 0
+  frame_index: 0
+  timestamp_s: 0.0
+  lower_body_and_waist_rad:
+    left_hip_pitch_joint: -0.40962231159210205
+    left_hip_roll_joint: 0.06476296484470367
+    left_hip_yaw_joint: 0.05865650251507759
+    left_knee_joint: 0.6500584483146667
+    left_ankle_pitch_joint: -0.2523843050003052
+    left_ankle_roll_joint: -0.04002387821674347
+    right_hip_pitch_joint: -0.413176029920578
+    right_hip_roll_joint: -0.06247051805257797
+    right_hip_yaw_joint: -0.03768479451537132
+    right_knee_joint: 0.6508339643478394
+    right_ankle_pitch_joint: -0.2709047198295593
+    right_ankle_roll_joint: 0.07497307658195496
+    waist_yaw_joint: -0.012133057229220867
+    waist_roll_joint: -0.015852725133299828
+    waist_pitch_joint: 0.1707620471715927
+  left_arm_rad:
+    left_shoulder_pitch_joint: -0.47729572653770447
+    left_shoulder_roll_joint: 0.7457543611526489
+    left_shoulder_yaw_joint: 0.2230144441127777
+    left_elbow_joint: 0.05939381942152977
+    left_wrist_yaw_joint: -0.5771483182907104
+    left_wrist_roll_joint: 0.3796842098236084
+    left_wrist_pitch_joint: -1.0863580703735352
+  right_arm_rad:
+    right_shoulder_pitch_joint: -0.33483925461769104
+    right_shoulder_roll_joint: -0.4128325879573822
+    right_shoulder_yaw_joint: -0.0652780756354332
+    right_elbow_joint: -0.17377126216888428
+    right_wrist_yaw_joint: 0.43771183490753174
+    right_wrist_roll_joint: 0.1464831829071045
+    right_wrist_pitch_joint: 0.7562046051025391
+  source_state_torso_xyz_rpy:
+    [-0.003963208291679621, 0.00004808819358004257, 0.04399999976158142,
+     -0.016086656600236893, 0.17074038088321686, -0.0148666026070714]
+  source_state_d435_xyz_rpy:
+    [0.12615413963794708, 0.022558849304914474, 0.4574957489967346,
+     -0.029404977336525917, 1.0013424158096313, -0.0368998721241951]
+
+collection_median_seated_posture_rad:
+  # Median of each dataset's q50, used only as a consistency check around the
+  # observed state above.
+  left_hip_pitch_joint: -0.403860
+  left_knee_joint: 0.652441
+  left_ankle_pitch_joint: -0.251860
+  right_hip_pitch_joint: -0.409678
+  right_knee_joint: 0.647261
+  right_ankle_pitch_joint: -0.258802
+  waist_pitch_joint: 0.171450
+
+table_plane_reference:
+  source_episode_index: 0
+  source_frame_index: 60
+  source_timestamp_s: 2.0
+  method: calibrated_rectified_stereo_plane_fit
+  source_camera: observation.images.head_stereo
+  parent_frame: dataset_kinematic_base_unconfirmed
+  point_on_plane_m: [0.4837280958, -0.0698638939, 0.0573966111]
+  upward_normal: [-0.03318253, 0.01245777, 0.99937165]
+  normal_tilt_deg: 2.03125
+  sampled_surface_z_m:
+    median: 0.0573966111
+    q05: 0.0431970635
+    q95: 0.0757677333
+  fit_inlier_count: 2400
+  note: >-
+    This is a metric table pose relative to the source kinematic base, not a
+    claimed world height. The source does not explicitly name the parent of
+    state_d435; confirm its convention before using the numeric plane directly.
+
+adoption_gate:
+  - Map every named source joint to the selected official G1 URDF.
+  - Render the observed pose with current Dex3 collision geometry.
+  - Keep the hands and forearms clear of the table at takeover.
+  - Preserve the measured table-relative pose as a starting hypothesis only.
+  - Adjust the real height-adjustable table after measuring the seated robot.

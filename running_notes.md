@@ -1532,3 +1532,172 @@ bimanual coordination, magnetic attachment, assembly/disassembly sequencing,
 perception, ROS 2 hardware bridging and physical G1 execution. The immediate
 result is three reusable right-arm pick-and-lift primitives, not a completed
 assembly demo.
+
+## 2026-07-22 — checkpoint before authoritative Isaac requalification
+
+The current work was checkpointed locally before changing the simulator
+contract:
+
+- root repository: `3bd0062 Checkpoint Dex3 grasp atlas and assembly task`;
+- GraspGenX submodule: `fac1352 Add current Dex3 grasp validation checkpoint`;
+  and
+- GraspDataGen submodule: `defd62a Extend Isaac grasp validation for Dex3`.
+
+Nothing was pushed. Existing Newton, Isaac, atlas, and visual outputs were
+kept. The VIRAL-profile work writes to new atlas IDs and output directories so
+the earlier evidence remains inspectable.
+
+## 2026-07-22 — reproduce the executed VIRAL Isaac contract
+
+The local clean GR00T-VisualSim2Real checkout at commit
+`92bf0863d4a9b6ee29849736152b7769bd45c49c` was audited line by line. This
+changed an important assumption: its YAML names `idealpd`, but the released
+Isaac adapter actually creates `ImplicitActuatorCfg`. Likewise, some declared
+fields are not consumed on the released path. The new named simulator profile
+copies executed behavior and records dormant declarations separately.
+
+Executed robot/simulator contract:
+
+- Isaac/PhysX at 200 Hz; the source policy command loop has decimation 4,
+  hence it may update targets at 50 Hz;
+- TGS, four articulation position iterations, zero velocity iterations;
+- self-collision disabled by the released G1 mapping, CCD disabled, maximum
+  depenetration velocity 1 m/s;
+- thumb-0: `kp=2.0`, `kd=0.1`, effort limit 2.45 Nm, velocity limit
+  6.857 rad/s, applied armature 0.01275;
+- the other six finger joints: `kp=0.5`, `kd=0.1`, effort limit 1.4 Nm,
+  velocity limit 12 rad/s;
+- applied armatures 0.010829175 for index-0/middle-0 and 0.03 for the four
+  remaining distal joints; and
+- joint friction zero and no command interpolation. The qualifier sends one
+  constant `q_close`; Isaac's implicit drive retains it through every physics
+  step, so command-refresh rate does not alter this static target.
+
+The adapter's explicit `armature × 3` and `friction × 0` transforms are
+already included in those values. The YAML's `idealpd` label, global
+`contact_offset=0.01`, global `rest_offset=0`, and effort-scale `0.95` are
+recorded as declared-but-not-applied instead of being silently copied into a
+different program path. `tools/audit_viral_isaac_profile.py` verifies this
+transcription directly against the pinned source checkout.
+
+Task-object physics is explicit rather than borrowed from an unrelated VIRAL
+prop: exact AprilCube meshes, convex decomposition, friction 1.0, restitution
+0, object contact/rest offsets 0.002/0 m, zero damping, and maximum
+depenetration velocity 1 m/s. The intrinsic hand-only qualifier keeps gravity
+off and applies the existing five one-gravity directional tugs. Table
+clearance, approach feasibility, and arm motion remain later task-scene tests.
+The cube uses the measured 0.030 kg print mass. T and U retain density-scaled
+estimates; their exact mass is not a current blocker because the tug force is
+also scaled by object weight, though inertia remains part of the recorded
+simulation provenance.
+
+The implementation remains an upstream extension, not a second simulator:
+
+- `simulation_profiles.py` owns the named, source-pinned profile;
+- GraspDataGen's existing `grasp_sim.py` applies it and emits observational
+  contact traces;
+- the root runner provides resumable 256-candidate shards and validates every
+  returned ID, profile, hash, phase, and PASS label; and
+- the atlas builder and arm-pool exporter consume those validated records.
+
+## 2026-07-22 — contact-trace cancellation found and corrected
+
+The first VIRAL-profile full run produced valid simulator PASS/FAIL verdicts,
+but the new coarse contact trace stored the vector sum of all object-filtered
+contact-pair forces on each hand link. Opposing force vectors on one link can
+cancel to zero. This is unsuitable for saying whether that link participated
+in a contact family.
+
+This did not corrupt the simulator verdict. Its existing PASS path computes
+the norm of every filtered body-pair force, takes the maximum per link, and
+requires at least two active digit groups. The contradiction was discovered
+when a passing cube trial appeared to contain only one active digit in its
+serialized final phase. Earlier work did not expose it because it consumed the
+binary simulator verdict and did not attempt contact-family clustering.
+
+The trace now records `contact_force_magnitude_N` as the maximum norm over the
+same object-filtered body pairs. At the qualified final phase, that scalar is
+overwritten from the exact tensor used by the PASS decision. The runner
+reconstructs the digit-group verdict from the serialized scalars and refuses
+the shard if it disagrees. A regression test explicitly creates equal and
+opposite forces whose vector sum is zero and verifies that contact remains
+present.
+
+The lossy old vectors could not be repaired after the fact, so all 12,288
+trials were rerun into `physics_outputs_body_scalar_v2`. The earlier
+`physics_outputs` directories were preserved. Comparing the two independent
+production runs found zero PASS/FAIL flips, which confirms that only family
+metadata—not grasp qualification—was affected. Very small smoke runs with a
+different environment count are not treated as reproducibility checks because
+GPU PhysX layout changes with the batch layout.
+
+## 2026-07-22 — authoritative right-Dex3 grasp atlases
+
+The corrected full run and atlas build completed:
+
+| Part | Proposals | Isaac PASS | PASS rate | Contact families | Arm-pool entries |
+|---|---:|---:|---:|---:|---:|
+| 45 mm cube | 4,096 | 2,437 | 59.50% | 40 | 2,437 |
+| T body | 4,096 | 1,240 | 30.27% | 39 | 1,240 |
+| U legs | 4,096 | 675 | 16.48% | 28 | 675 |
+
+Every arm-pool entry is an unchanged GraspGenX candidate that passed the
+VIRAL-profile intrinsic Isaac qualifier. The task configuration now references
+these `*_viral_v1/right/arm_grasp_pool.yaml` files. Left-hand qualification
+remains intentionally deferred.
+
+The family-review MP4s replay one primary family representative sequentially
+through the same named profile. Their replay result is shown explicitly but is
+only a visual diagnostic: changing from the production 256-environment layout
+to a one-environment-per-family review batch can change marginal PhysX cases,
+so it never overwrites the production atlas label.
+
+The generated reviews are all 960×720 at 24 fps and decode without errors:
+
+- cube: 40 families, 39 replay passes, 1 explicit replay failure, 181.67 s;
+- T: 39 families, 30 replay passes, 9 explicit replay failures, 177.13 s; and
+- U: 28 families, 20 replay passes, 8 explicit replay failures, 127.17 s.
+
+The files are `docs/assets/dex3_*_grasp_families_right_viral.mp4`.
+
+## 2026-07-22 — UniBot-V1 seated/tabletop reference audit
+
+The official Unitree UniBot-V1 Challenge collection is useful for our setup,
+but only along clearly separated evidence boundaries. Across its 32 listed
+G1-Dex1 tabletop datasets, the released metadata totals 33,276 episodes and
+18,282,246 frames. The datasets expose named lower-body and waist joints,
+both seven-joint arms, torso and `d435` poses, calibrated head stereo, wrist
+cameras, and 30 Hz timestamps. Therefore this is much stronger evidence for a
+seated seed and demonstrated arm/table workspace than a pose invented by eye.
+
+Across the 32 datasets, the median of each dataset's reported joint median is:
+
+```text
+left  hip pitch -0.403860, knee +0.652441, ankle pitch -0.251860 rad
+right hip pitch -0.409678, knee +0.647261, ankle pitch -0.258802 rad
+waist pitch +0.171450 rad
+```
+
+For an internally coherent seed, the project stores one state that actually
+occurred—ArrangePlates episode 0, frame 0—rather than combining independent
+coordinate-wise medians into a pose that may never have existed. The exact
+joint values, dataset revision, and source indices are in
+`config/setup/unibot_arrangeplates_reference_v1.yaml`.
+
+A preliminary metric table plane was also estimated from ArrangePlates frame
+60 using the released stereo calibration and imagery. In the presumed dataset
+kinematic base, its point is approximately `(0.484, -0.070, 0.057) m` with a
+2.03-degree normal tilt. This number is deliberately marked
+`reference_only_pending_dex3_scene_review`: the release does not explicitly
+document the parent-frame convention connecting `state_d435` to the head
+stereo pair, so it is not yet a deployment table height.
+
+The Dex1/Dex3 difference does not invalidate the lower-body seated seed or the
+coarse table-relative arm workspace. It does invalidate blindly copying hand
+clearance, grasp, and wrist-collision assumptions because the current Dex3 is
+larger and differently shaped. Adoption therefore requires mapping the named
+joints into our selected official G1 URDF, rendering that observed state with
+the current Dex3 collision model, confirming forearm/hand table clearance,
+and then setting the real height-adjustable table from the measured seated
+robot. AprilTags can correct object/table pose at runtime; they do not correct
+a poor nominal seated collision geometry.

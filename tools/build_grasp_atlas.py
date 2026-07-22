@@ -266,10 +266,14 @@ def coarse_phase_contacts(phase: dict, hand_side: str) -> dict[str, set[str]]:
         group = "palm" if link == "palm" else digit_for_link(link)
         if group is None:
             continue
-        net_force = np.asarray(
-            contact["net_normal_force_world_N"], dtype=np.float64
-        )
-        if float(np.linalg.norm(net_force)) <= 0.0:
+        if "contact_force_magnitude_N" in contact:
+            force_magnitude = float(contact["contact_force_magnitude_N"])
+        else:
+            net_force = np.asarray(
+                contact["net_normal_force_world_N"], dtype=np.float64
+            )
+            force_magnitude = float(np.linalg.norm(net_force))
+        if force_magnitude <= 0.0:
             continue
         # Preserve participation even when detailed PhysX point buffers are
         # empty or fail the mesh-consistency diagnostic.
@@ -611,11 +615,16 @@ def main() -> None:
     )
     hand_sides = [args.hand_side] if args.hand_side else config["physics"]["hands"]
     for hand_side in hand_sides:
-        trace_paths = sorted((artifacts_root / hand_side / "physics_outputs").glob("*.jsonl"))
+        output_directory = config["physics"].get(
+            "qualification_output_directory", "physics_outputs"
+        )
+        trace_paths = sorted(
+            (artifacts_root / hand_side / output_directory).glob("*.jsonl")
+        )
         if not trace_paths:
             raise FileNotFoundError(
                 f"No {hand_side} contact traces under "
-                f"{artifacts_root / hand_side / 'physics_outputs'}"
+                f"{artifacts_root / hand_side / output_directory}"
             )
         trials = load_jsonl(trace_paths)
         if not args.allow_incomplete and len(trials) != expected_count:

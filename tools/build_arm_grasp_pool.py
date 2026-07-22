@@ -149,12 +149,15 @@ def build(config_path: Path, hand_side: str) -> dict[str, Any]:
     if not input_paths:
         raise FileNotFoundError(f"No Isaac inputs under {atlas_root / hand_side}")
 
+    output_directory = config["physics"].get(
+        "qualification_output_directory", "physics_outputs"
+    )
     for input_path in input_paths:
         shard_name = input_path.stem
         result_path = (
             atlas_root
             / hand_side
-            / "physics_outputs"
+            / output_directory
             / shard_name
             / "grasp_sim_data"
             / f"dex3_rev1_{hand_side}"

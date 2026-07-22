@@ -10,7 +10,7 @@ parts:
     mesh: generated/aprilcube_parts/t_body/grasp_mesh.obj
     geometry_config: config/aprilcube_parts/t_body.yaml
     grasp_pools:
-      right: artifacts/grasp_atlas/t_body_v1/right/arm_grasp_pool.yaml
+      right: artifacts/grasp_atlas/t_body_viral_v1/right/arm_grasp_pool.yaml
     grasp_constraints:
       # The holder must keep both connector corridors exposed.
       allowed_cuboids: [central_stem]
@@ -20,7 +20,7 @@ parts:
     mesh: generated/aprilcube_parts/u_legs/grasp_mesh.obj
     geometry_config: config/aprilcube_parts/u_legs.yaml
     grasp_pools:
-      right: artifacts/grasp_atlas/u_legs_v1/right/arm_grasp_pool.yaml
+      right: artifacts/grasp_atlas/u_legs_viral_v1/right/arm_grasp_pool.yaml
     grasp_constraints:
       allowed_cuboids: [left_leg, right_leg, hip_bridge]
       keep_clear_connections: [u_to_t]
@@ -29,7 +29,7 @@ parts:
     mesh: generated/aprilcube_parts/cube_head/grasp_mesh.obj
     geometry_config: config/aprilcube_parts/cube_head.yaml
     grasp_pools:
-      right: artifacts/grasp_atlas/cube_v1/right/arm_grasp_pool.yaml
+      right: artifacts/grasp_atlas/cube_viral_v1/right/arm_grasp_pool.yaml
     grasp_constraints:
       allowed_cuboids: [head]
       keep_clear_connections: [head_to_t]

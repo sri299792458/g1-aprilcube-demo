@@ -271,15 +271,15 @@ mapping, grouping, and reports. It must not reimplement the simulator.
 
 ### 7.2 Exact hand trials
 
-Each of the 4,096 canonical proposals is evaluated twice:
+The current milestone evaluates each of the 4,096 canonical proposals once:
 
 ```text
 4,096 × current right Dex3
-4,096 × current left Dex3
 ```
 
-The candidate transform is copied unchanged into both Isaac inputs. The
-descriptor URDF supplies the side-specific fixed `G_T_palm` relationship.
+Left-hand qualification is deliberately deferred until the task actually
+requires it. The candidate transform is copied unchanged into the Isaac input.
+The descriptor URDF supplies the fixed `G_T_palm` relationship.
 
 Each input records:
 
@@ -295,19 +295,34 @@ Each input records:
 
 ### 7.3 Solver and test sequence
 
-Production uses the validated GraspDataGen defaults unless the manifest states
-otherwise:
+Production uses the named `viral_g1_43dof_92bf086` profile. It reproduces the
+settings that the released GR00T-VisualSim2Real Isaac adapter actually applies,
+not every field merely declared in its YAML:
 
 ```text
-physics frequency              250 Hz (dt = 0.004 s)
-minimum position iterations    64
+physics frequency              200 Hz (dt = 0.005 s)
+source command decimation      4 (50 Hz target updates)
+solver                         TGS
+articulation iterations        4 position, 0 velocity
 initial close/settle duration  1.0 s
 disturbance magnitude          1 × object weight
 gravity                        disabled in the hand-only test
-continuous collision flag      unchanged from the validated GPU path
-self-collision                  disabled inside the hand only
+self-collision                  disabled as in the released G1 mapping
+object collision approximation convex decomposition
+object friction                1.0 static, 1.0 dynamic
+object contact/rest offsets    0.002 m / 0.0 m
 hand–object collision           enabled
 ```
+
+The seven finger actuators use the released implicit actuator path: thumb-0
+`kp=2.0`, `kd=0.1`, `2.45 Nm`; the other six joints `kp=0.5`, `kd=0.1`,
+`1.4 Nm`. Velocity limits, the adapter's applied `3×` armatures, and zero
+joint friction are also copied. VIRAL may update targets at 50 Hz; this static
+qualifier sends one constant `q_close`, which Isaac's implicit drive retains
+through every 200 Hz physics step. The declared global
+`contact_offset=0.01`, global `rest_offset=0`, effort-scale `0.95`, and
+`idealpd` label are recorded as dormant because the released adapter does not
+apply them on this path.
 
 The five 0.5 s object-frame tugs are unchanged:
 
@@ -345,7 +360,7 @@ after_tug_4
 after_tug_5_final
 ```
 
-Recording every 250 Hz frame is deliberately out of scope. Six snapshots are
+Recording every 200 Hz frame is deliberately out of scope. Six snapshots are
 enough to distinguish a persistent contact family from a grasp that changes or
 loses contacts during a particular disturbance.
 
@@ -396,6 +411,7 @@ phases:
       - hand_link: right_hand_thumb_2_link
         physx_body: right_hand_thumb_2_link
         net_normal_force_world_N: [fx, fy, fz]
+        contact_force_magnitude_N: 0.75  # max norm over object-filtered pairs
         points:                         # diagnostic, never a pass/family signal
           - position_object_m: [x, y, z]
             normal_object: [nx, ny, nz]
@@ -407,10 +423,13 @@ phases:
 simulator internally stores the inverse relationship, the adapter must convert
 once at serialization and unit-test the conversion.
 
-The only decision extracted from a body's aggregate vector is whether its
-magnitude is zero or nonzero at a named phase. The vector's magnitude and
-direction are not interpreted as grip quality. Exact solver points, normals,
-separations, and scalar forces are provenance/debugging data only.
+Body/chain participation uses `contact_force_magnitude_N > 0`, where the
+scalar is the maximum norm over that body's object-filtered contact pairs.
+It is the same non-cancelling quantity used by the simulator's PASS test.
+The aggregate vector remains diagnostic only because opposing contacts can
+cancel when summed. Exact solver points, normals, separations, and scalar
+force sizes are provenance/debugging data; the scalar is interpreted only as
+zero versus nonzero.
 
 ### 7.8 Contact-point semantics
 
@@ -657,9 +676,9 @@ Numbers alone are insufficient for this gate. The current right-hand build
 produces:
 
 ```text
-docs/assets/dex3_cube_grasp_families_right.mp4
-docs/assets/dex3_t_body_grasp_families_right.mp4
-docs/assets/dex3_u_legs_grasp_families_right.mp4
+docs/assets/dex3_cube_grasp_families_right_viral.mp4
+docs/assets/dex3_t_body_grasp_families_right_viral.mp4
+docs/assets/dex3_u_legs_grasp_families_right_viral.mp4
 ```
 
 ### 11.1 Machine-readable atlas
@@ -719,9 +738,9 @@ Before arm-planning work resumes, review must establish that:
 Use one checked-in file per object:
 
 ```text
-config/grasp_atlas/cube_v1.yaml
-config/grasp_atlas/t_body_v1.yaml
-config/grasp_atlas/u_legs_v1.yaml
+config/grasp_atlas/cube_viral_v1.yaml
+config/grasp_atlas/t_body_viral_v1.yaml
+config/grasp_atlas/u_legs_viral_v1.yaml
 ```
 
 It names inputs and reproducibility parameters. It must not duplicate the hand

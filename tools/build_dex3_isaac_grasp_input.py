@@ -271,7 +271,10 @@ def run_atlas(args: argparse.Namespace, repo: Path) -> None:
     if not 0 <= args.shard_index < len(seeds):
         raise IndexError(f"--shard-index outside [0, {len(seeds) - 1}]")
     artifacts_root = project_path(repo, config["artifacts_root"])
-    raw_path = artifacts_root / "raw" / f"shard_{args.shard_index:03d}.yaml"
+    raw_artifacts_root = project_path(
+        repo, config.get("raw_artifacts_root", config["artifacts_root"])
+    )
+    raw_path = raw_artifacts_root / "raw" / f"shard_{args.shard_index:03d}.yaml"
     output_path = (
         artifacts_root
         / args.hand_side
@@ -306,10 +309,29 @@ def run_atlas(args: argparse.Namespace, repo: Path) -> None:
             "detailed_point_budget_per_body_environment": int(
                 config["physics"]["detailed_point_budget_per_body_environment"]
             ),
+            "simulation_profile": config["physics"].get(
+                "simulation_profile", "graspdatagen_upstream"
+            ),
+            "contact_trace_mode": config["physics"].get(
+                "contact_trace_mode", "detailed"
+            ),
+            "raw_atlas_config": str(
+                project_path(repo, config.get("raw_source_config", config_path))
+                .relative_to(repo)
+            ),
         },
         contact_trace_links=side["contact_trace_links"],
         contact_trace_link_aliases=side["contact_trace_link_aliases"],
     )
+    output["physics_qualification_profile"] = {
+        "simulation_profile": config["physics"].get(
+            "simulation_profile", "graspdatagen_upstream"
+        ),
+        "physics_hz": float(config["physics"]["fps"]),
+        "contact_trace_mode": config["physics"].get(
+            "contact_trace_mode", "detailed"
+        ),
+    }
     rendered = yaml.safe_dump(output, sort_keys=False)
     if output_path.exists():
         existing = yaml.safe_load(output_path.read_text())
