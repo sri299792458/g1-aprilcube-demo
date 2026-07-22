@@ -1,0 +1,47 @@
+[project]
+name = "g1-aprilcube-demo"
+version = "0.1.0"
+description = "Research prototype for G1 tabletop AprilCube manipulation"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    # GraspGenX's end-to-end examples use cuRobo's runtime-compiled CUDA
+    # backend. Keep the application-level upper bound from GraspGenX rather
+    # than cuRobo's broader standalone requirement.
+    "cuda-core[cu12]>=0.7,<1.0",
+    # Newton's MuJoCo solver requires convex collision geometry for triangle
+    # meshes. Use the same decomposition package as GraspGenX end-to-end.
+    "coacd>=1.0.7",
+    # GraspGenX's scene-synthesizer extra otherwise selects the newest
+    # dm-control, which currently requires MuJoCo >=3.10. Newton 1.0's
+    # validated MuJoCo-Warp backend is pinned to MuJoCo 3.5.
+    "dm-control==1.0.31",
+    "graspgenx",
+    # cuRobo is installed editable from its pinned full-assets checkout by
+    # tools/setup_graspgenx_end2end.py. Its upstream setup uses --no-deps, so
+    # keep these otherwise-missing ordinary dependencies in the root env.
+    "importlib-resources",
+    "newton[sim]==1.0.0",
+    "numpy-quaternion",
+    # Pyrender 0.1.17 requires this historical prerelease. Pinning it
+    # explicitly avoids enabling prereleases globally.
+    "pyglet==1.4.0b1",
+    # Newton has no upper bound and would otherwise select a nightly build.
+    "warp-lang==1.15.0",
+    "wheel",
+]
+
+[tool.uv.sources]
+graspgenx = { path = "third_party/GraspGenX", editable = true }
+
+[tool.uv]
+constraint-dependencies = [
+    "cython==3.2.8",
+    "grpcio==1.82.1",
+    "httpx==0.28.1",
+    "hydra-core==1.3.4",
+    "lxml==6.1.1",
+    "omegaconf==2.3.1",
+    "protobuf==7.35.1",
+    "pyopengl-accelerate==3.1.10",
+    "wrapt==2.2.2",
+]

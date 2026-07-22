@@ -40,3 +40,1495 @@ Problems found before any project code was written:
 
 Next gate: review the visual probe and contract. After approval, generate and
 render candidates for the actual AprilCube meshes before introducing MoveIt.
+
+## 2026-07-18 — official Dex3 left/right geometry check
+
+Checked the current official Unitree `xr_teleoperate` hand assets at commit
+`7dc9aa1a6edbf4a9f4f887d8ab6fc449ea5135f6`.
+
+- In their native palm frames, the complete zero-joint left-hand visual
+  geometry equals the right-hand geometry rotated 180 degrees about palm +X:
+  `left = Rx(pi) @ right`. The measured maximum mesh discrepancy is about
+  2 micrometres (STL rounding).
+- The same equality holds at a nonzero test configuration when left thumb
+  joints negate the right thumb joints and left index/middle negate and swap
+  right middle/index.
+- Palm +X points longitudinally from the wrist/palm base toward the fingers.
+- Consequently one verified actual-right canonical mapping is sufficient;
+  the equivalent actual-left mapping is derived as
+  `G_T_left_palm = G_T_right_palm @ Rx(pi)`.
+- The GraspGenX-bundled `unitree_g1` hand is not geometrically identical to
+  the current official Unitree Dex3 asset. The bundled mapping remains valid
+  for its own probe, but the actual G1 mapping still requires an explicit
+  overlay check before MoveIt integration.
+- Provenance audit: all eight bundled right-hand STL files are byte-for-byte
+  identical to the files under GR00T-VisualSim2Real's `g1/old/mesh/G1`, and
+  all seven right-hand joint origins, axes, limits, and parent/child pairs
+  match its old `g1_unitree.urdf`. GraspGenX changes those old fixed joints to
+  revolute joints and supplies convex collision meshes for its descriptor.
+- This establishes the same old Unitree G1 hand asset lineage, but not a direct
+  GR00T-to-GraspGenX copy: the bundled asset's README explicitly names Unitree
+  `unitree_ros/g1_description` as its source.
+- Our selected mode-5 robot instead uses the newer rev-1.0 Dex3 model with
+  `right_hand_*` / `left_hand_*` link names. The old and rev-1.0 hands are not
+  related by one scale factor; palm proportions and finger-base locations,
+  masses, inertias, and joint naming all differ.
+- Rev-1.0 provenance is official Unitree, not NVIDIA-authored geometry:
+  Unitree updated the current hand meshes in `unitree_ros` commit `9a7481d`
+  on 2024-09-25 and added `g1_29dof_with_hand_rev_1_0` in commit `e6b9e8c`
+  on 2024-10-22. GR00T's G1 assets appeared publicly in April 2026; its USD
+  metadata names Unitree's rev-1.0 model as the source, and all eight current
+  right-hand mesh LFS hashes exactly match the official Unitree files. NVIDIA
+  converted/packaged and simulation-configured that model for GR00T.
+
+Visual explanation: `docs/assets/dex3_rx_pi_explainer.png`; reproducible
+renderer: `tools/render_dex3_rx_pi_explainer.py`.
+
+## 2026-07-18 — GraspGenX training/checkpoint audit
+
+- The committed upstream probe used the authors' public post-CVPR `release`
+  checkpoint at model-repository commit
+  `7c834043c11a11417e31d6d5ea9355801e40a2c1`: generator
+  `epoch_736.pth` and discriminator `epoch_1056.pth`.
+- Both released configs specify `train_gripper_split: proc_v1_train_32`.
+  This is the latest model described in the paper as trained on 32 procedural
+  grippers, 8.5K objects, and more than 2 billion simulated grasps.
+- Unitree G1 is a held-out real test gripper in the paper, not one of those
+  training grippers. The paper's per-target supervised-fine-tuning experiment
+  is an adaptation study; no G1-specific fine-tuned checkpoint is present in
+  the public model repository, and we are not using one.
+- Therefore the old Unitree hand bundled in `gripper_descriptions` is an
+  inference/evaluation embodiment definition, not evidence that the released
+  network weights were trained or fine-tuned on that exact hand.
+- For our rev-1.0 Dex3, use the same released cross-embodiment checkpoint but
+  create a new descriptor from the exact rev-1.0 open and half-open sweep
+  volumes and its own canonical-root-to-palm transform. The old 12 numbers can
+  seed the annotation, but must not be copied unchanged; its transform and
+  collision geometry are not valid for the current hand.
+- This is the model's intended zero-shot use, but it is not a guarantee. Its
+  12-number swept-volume representation omits detailed kinematics, contact
+  friction, and the three-finger asymmetric contact pattern. Candidate
+  ranking must therefore be followed by exact-hand geometry/closure,
+  collision, IK, and motion-planning filters.
+
+## 2026-07-18 — current Dex3 descriptors, visual gate
+
+Built reproducible `dex3_rev1_right` and `dex3_rev1_left` GraspGenX descriptor
+assets from the exact official Unitree `xr_teleoperate` hand source at commit
+`7dc9aa1a6edbf4a9f4f887d8ab6fc449ea5135f6`.
+
+- The source manifest pins and SHA-256 verifies both URDFs, all 16 meshes, and
+  the Apache-2.0 license.
+- The build strips nonphysical standalone-teleoperation auxiliary links. Each
+  generated URDF contains only canonical `world`, the palm, seven joints, and
+  seven physical finger links.
+- Right and left get separate fixed canonical-to-palm transforms. Their
+  canonical open-hand bounding boxes agree within `1.32e-10 m`.
+- Open/close joint endpoints are the provisional GR00T-VisualSim2Real profiles
+  at commit `92bf086357156f04273cc5a3e9559e6b1415c8c7`; all values pass the current
+  official URDF limits with at least `0.3216 rad` margin at close.
+- The old GraspGenX Unitree boxes were used as a semantic and scale template,
+  then fitted to current fingertip geometry. They remain marked
+  `visual_review_required`.
+- The upstream wizard's automatic initializer was evaluated but rejected for
+  these boxes: the L-shaped zero-joint posture makes its largest-centroid-spread
+  heuristic select canonical `+Z` as the closing axis, while the verified
+  physical closing direction is canonical `+X`. The interactive/manual box
+  review is therefore not optional for this hand.
+- Both descriptors load through GraspGenX's project-asset resolution with the
+  expected 12 sweep values and materialized visual/collision meshes. Missing
+  point-cloud, TSDF, and VAE representation files fall back to dummy data as
+  upstream permits; the released `sweep_volume_v2` checkpoint does not consume
+  those legacy representations.
+
+Reproducible builder: `tools/build_dex3_rev1_descriptors.py`.
+Numerical audit: `artifacts/dex3_rev1_descriptor/audit.json`.
+Visual gate: `docs/assets/dex3_rev1_descriptor_states.png`.
+
+The descriptor visual gate was subsequently accepted for raw inference. This
+acceptance is not a claim about closure, contact, reachability, or execution.
+
+## 2026-07-18 — actual AprilCube parts and raw GraspGenX candidates
+
+Pinned `sri299792458/aprilcube` at
+`fc18d50c8bbaadc9646dfd0aa5fcd2404a9868c5` and generated the task's actual
+T body, U legs, and cube head from project-owned YAML specs.
+
+- The first 30 mm voxel revision was rejected after the exact open-Dex3 render
+  showed that the objects were visibly underscaled. The physical design now
+  uses the normal 45 mm AprilCube scale, 36 mm AprilTag 36h11 markers, and a
+  3 mm edge radius.
+- T: 6 occupied voxels, 135 × 45 × 180 mm, tag IDs 0–25.
+- U: 7 occupied voxels, 135 × 45 × 135 mm, tag IDs 64–93.
+- cube: 1 voxel, 45 × 45 × 45 mm, tag IDs 128–133.
+- The complete no-gap figure is 360 mm tall. Magnet pockets are intentionally
+  absent from this geometry revision.
+- The textured AprilCube OBJ is retained for rendering/perception but is
+  materially partitioned into marker patches. A second mesh builder repeats
+  AprilCube's rounded manifold union without material partitioning and exports
+  clean watertight positive-volume `grasp_mesh.obj` files for point sampling.
+- Left/right descriptors have identical canonical conditioning, so the neural
+  model generates one hand-neutral `object_T_G` set per part. Physical palm
+  conversion and arm assignment remain side-specific downstream.
+- The released model was rerun on the 45 mm meshes. It generated 240 raw
+  proposals per part and retained 20. Best confidences were T `0.991`, U
+  `0.978`, and cube `0.879`.
+- The initial audit mistakenly rendered the fixed terminal-close vector through
+  each object and used that penetrative result to judge the U proposal. That
+  conclusion was unsupported and has been retracted. The replacement audit
+  shows only the open hand and returned frame.
+
+Visual gate: `docs/assets/aprilcube_raw_grasp_audit.png`.
+Provenance: `artifacts/aprilcube_raw_grasps/provenance.json`.
+
+The 45 mm physical scale is now established and rendered beside the exact open
+Dex3 in `docs/assets/aprilcube_45mm_scale.png`. Stop before MoveIt. Next
+implement a deterministic candidate qualifier that stops fingers at first
+contact, checks prohibited-link penetration and opposing contacts, and renders
+explicit pass/fail reasons.
+
+## 2026-07-20 — clean locked simulation environment
+
+Started the simulation/contact phase in the new repository rather than reusing
+the old demo environment.
+
+- Installed `uv 0.11.29` at `~/.local/bin/uv`; shell profiles were not changed.
+- Added a Python 3.11 root project and reproducible lock contract in
+  `pyproject.toml`, `.python-version`, and `uv.lock`.
+- The selected compatible core stack is GraspGenX at the pinned local
+  submodule, PyTorch `2.6.0+cu124`, Newton `1.0.0`, Warp `1.15.0`, MuJoCo
+  `3.5.0`, and MuJoCo-Warp `3.5.0.2`.
+- `uv pip check` reports all 153 installed packages compatible. GraspGenX
+  imports from this repository's checkout, and PyTorch/Warp see both RTX A5500
+  GPUs.
+- `tools/check_sim_stack.py` exercises the same architectural path used by
+  GraspGenX dynamic playback: Newton `CollisionPipeline` produces contacts and
+  Newton `SolverMuJoCo` delegates the solve to MuJoCo-Warp. A 50 mm-radius
+  sphere dropped from 300 mm settled at 48.83 mm instead of falling through
+  the ground plane.
+- Restored the old `/home/srinivas/Desktop/demo/.venv/graspgenx` environment to
+  its observed pre-install state: MuJoCo `3.10.0`, with Newton, Warp, and
+  MuJoCo-Warp absent.
+
+This establishes the environment only. It does not yet qualify any Dex3 grasp.
+
+## 2026-07-20 — untouched GraspGenX end-to-end baseline passes
+
+Ran the pinned upstream Franka single-object example without source or physics
+parameter changes. The complete GraspGenX -> scene collision filter -> cuRobo
+-> Newton/MuJoCo-Warp path succeeded and dropped 1/1 objects into the bin with
+zero retries.
+
+- The first two attempts exposed setup faults rather than grasp failures: the
+  Franka collision OBJ was an unmaterialized Git-LFS pointer, then cuRobo's
+  editable `--no-deps` installation lacked `cuda.core`.
+- Materialized the gripper-description LFS assets and installed GraspGenX's
+  declared `cuda-core[cu12]>=0.7,<1.0` range. The accepted run used
+  `cuda-core 0.7.0`; `uv pip check` reports all 165 packages compatible.
+- 36 scene-collision-free candidates reached cuRobo. It selected original
+  GraspGenX candidate 7 at confidence `0.783`.
+- Newton reported a `0.196 m` lift at the lift checkpoint. The exported
+  trajectory's peak rise was `0.240 m`; its final XY error from bin center was
+  `0.053 m, 0.039 m`.
+- The 1,532-frame trajectory and 25.5 second visual confirm physical closure,
+  carrying, release, and final settling. See
+  `docs/graspgenx_newton_baseline.md` and
+  `docs/assets/graspgenx_franka_newton_baseline.mp4`.
+
+This validates the reference pipeline, not Dex3. GraspGenX has no shipped
+G1/Dex3 end-to-end profile. The next adapter must add current-Dex3 per-joint
+gain maps and compare an explicitly named upstream-default profile against a
+separate VIRAL-derived profile (`thumb_0 2.0/0.1`, other six `0.5/0.1`) in the
+same Newton scene. Do not mix those gains into the Franka reference.
+
+Added `config/dex3_newton_control_profiles.yaml` with those two profiles and
+their separate provenance. The VIRAL profile also records its 200 Hz physics,
+4-step control decimation, raw per-joint effort limits, and side-specific
+armatures after the source Isaac Sim adapter's explicit `x3` scaling. The
+values match the pinned source programmatically. The structural validator
+confirms exact seven-joint coverage for both current left/right descriptor
+URDFs while explicitly reporting that neither profile is physics-qualified.
+
+## 2026-07-20 — controlled current-Dex3 tabletop test restored
+
+Restored the originally agreed first Dex3 experiment after an unhelpful
+floating-hand/zero-gravity detour. The controlled scene is one current right
+Dex3 hand, the actual generated 45 mm AprilCube cube, a flat table, and normal
+gravity. There is no Franka/bin scene, G1 arm/body, chair, magnet, MoveIt,
+cuRobo, or assembly logic in this calibration test.
+
+The intended sequence at 60 recorded frames/s is:
+
+1. let the cube settle on the table;
+2. hold the exact open hand at a collision-free pregrasp;
+3. follow the selected GraspGenX approach to `world_T_G`;
+4. hold open at the grasp pose for one second;
+5. close the seven Dex3 joints over 20 frames (~0.33 s);
+6. hold closed for one second;
+7. lift the prescribed hand base by 0.20 m over four seconds;
+8. hold elevated for one second.
+
+The pregrasp is searched backward along the candidate's own approach axis and
+must clear the exact open-hand collision mesh, cube, table, and sampled linear
+approach corridor. No fixed 14 cm offset is used. A pass requires the cube to
+rise with the hand, stay stable through the final hold, avoid numerical
+ejection, and avoid collision by palm/proximal links that are not intended
+contacts. After a cube profile passes, repeat with actual T/U candidates and
+both hands.
+
+### Upstream boundary
+
+This remains an adaptation of the vendored GraspGenX end-to-end code under
+`third_party/GraspGenX`, not an independent simulator. The implementation
+reuses upstream `run_graspgen`, checkpoint loading, `scene_builder`,
+`DynamicSession`, its Newton `CollisionPipeline` + MuJoCo-Warp solver/contact
+settings, trajectory JSON exporter, and `render_trajectory_mp4.py`. Project
+additions are limited to the current-Dex3 descriptor/profile, the tabletop
+cube environment, candidate/experiment orchestration, and prescribed motion
+of a hand-only fixed root.
+
+A separate custom static-preview renderer was judged unnecessary bloat. The
+single controlled evaluator should run Newton and derive its video and review
+frames from the same exported simulated trajectory. Geometric qualification
+still runs before stepping physics, but it is a validation stage inside that
+one evaluator rather than a second visualization pipeline.
+
+### Candidate/table result
+
+The first deterministic inference used seed 17, 3,500 object points, 480 raw
+samples, and the top 60 discriminator-ranked candidates. Nine of those 60 met
+the requested top-down score (`-G.z_world >= 0.85`), but every one of those
+nine placed the exact open current-Dex3 collision mesh in the table. Only one
+of the top 60 was both cube- and table-clear; it was a side approach, not
+top-down. This is a meaningful geometry result: do not silently send a
+table-intersecting top-down pose into Newton merely to preserve the original
+sketch. The evaluator should prefer top-down when feasible and otherwise
+explicitly record any fallback to the best fully qualified GraspGenX
+candidate.
+
+### Newton adapter faults found and fixed
+
+- `dynamic_playback.py`'s deterministic-inertia branch assigned NumPy arrays
+  into Newton's typed `ModelBuilder.body_inertia/body_com` lists. This made
+  `builder.finalize()` fail with a heterogeneous-array error. The same values
+  are now assigned as `wp.mat33` and `wp.vec3`.
+- Upstream dynamic playback hard-coded `collapse_fixed_joints=True`. On the
+  standalone Dex3 descriptor this removes the moving palm and exposes thumb,
+  middle, and index as three separate world-rooted articulations. The importer
+  option is now profile-controlled; the hand-only Dex3 profile sets it to
+  `false`, preserving one canonical fixed root, the palm body, and all three
+  connected finger chains.
+- With the palm preserved, MuJoCo rejected its inertia. Unitree's official
+  palm inertia is valid but is expressed in a rotated inertial frame; Newton
+  1.0's URDF import produced a non-symmetric matrix for that case. The
+  descriptor generator now performs the equivalent basis change
+  `I_link = R * I_inertial * R^T` and writes zero inertial-frame RPY. Mass,
+  COM, and physical inertia are unchanged. Both descriptors were rebuilt and
+  the complete hand-only Newton model now constructs successfully.
+- `DynamicSession` now records the robot's fixed root joints and supports a
+  prescribed base transform through Newton/MuJoCo's supported mocap update:
+  update `model.joint_X_p`, notify `SolverNotifyFlags.JOINT_PROPERTIES`, and
+  preserve each root's local transform. Per-frame exported hand meshes use
+  this same moving base transform. This is the minimal missing capability for
+  the arm-free approach/lift isolation test.
+
+The generic GraspGenX control profile remains the first run: 1 ms requested
+physics step, collision refresh every four substeps, 100 solver iterations,
+50 line-search iterations, `impratio=1000`, finger `kp=2000`, `kd=200`, and
+the existing explicit contact/object settings. Only after that exact baseline
+runs should the otherwise identical scene be repeated with the recorded VIRAL
+per-joint gains, effort limits, and armatures.
+
+Current status: the descriptor and Newton model construction faults are fixed,
+but no Dex3 cube grasp simulation has completed and no Dex3 grasp has passed.
+
+### Correction after the first completed current-Dex3 simulations
+
+The earlier top-60 table-collision count was produced with one merged visual
+mesh and was too conservative. Candidate qualification now uses cached,
+per-link collision elements from the exact descriptor URDF—the same collision
+geometry family imported into Newton. Across the top 240 candidates, 30 meet
+the nominal top-down score and 27 of those collide with the table. The three
+remaining table-clear top-down proposals do not place the cube in the
+descriptor's open/mid sweep volumes. Therefore there is currently no
+top-down proposal that is both capture-qualified and table-clear for the
+45 mm cube in this flat-table scene. The evaluator records an explicit side
+approach fallback rather than modifying a neural pose.
+
+The first table-clear side candidate selected only by confidence was candidate
+148. It had zero meaningful sweep-volume occupancy: in canonical G its cube
+center lay at approximately `[0.008, 0.004, 0.163] m`, beyond the descriptor's
+finger sweep. In the full 560-frame Newton run the close ejected the cube;
+measured final lift rise was `-0.491 m`, hand-relative drift was `4.54 m`, and
+maximum one-frame cube translation was `0.214 m`. This exposed a missing
+candidate-contract check, not a controller-tuning result.
+
+The evaluator now samples the actual cube surface and checks it against the
+same open and mid sweep boxes used to condition GraspGenX. The default gate is
+at least 10% surface occupancy in each box and 20% in their union. It remains
+a coarse descriptor-consistency gate, not a claim of physical force closure.
+Pregrasp clearance is also separated into 30 mm from the object and 2 mm from
+the table. Requiring 30 mm from the table made every valid horizontal approach
+impossible because backing away horizontally cannot increase vertical table
+clearance.
+
+With those corrections, five of the deterministic top 240 candidates pass the
+open-hand, table, capture-volume, and complete linear-corridor checks: 149,
+158, 182, 189, and 205. Candidate 149 is the highest-confidence member. It is
+a side approach (confidence `0.579`) with a computed 5 mm pregrasp, 32.9 mm
+object clearance, and 6.9 mm table clearance. The full upstream-timing Newton
+run completed, but it also failed physically: the 20-frame close pushed the
+cube sideways and the hand lifted alone. Metrics were 0.34 mm cube rise,
+207 mm maximum hand-relative drift, 0.68 mm final-hold drop, and 43.7 mm
+maximum one-frame cube motion. Visual evidence is in
+`artifacts/dex3_tabletop_generic_capture_filter/simulation.mp4` and
+`phase_contact_sheet.png`.
+
+This failure demonstrates why neither a static render nor sweep occupancy is
+the final grasp test. Before changing gains, the same Newton scene and exact
+timing must evaluate all five geometrically qualified GraspGenX candidates.
+Candidate identity can now be requested explicitly, but only after it passes
+the common geometric gate. The first physics-passing candidate—if one
+exists—will be the selected baseline and the only one rendered as the accepted
+result. If none passes, the next question is the current-Dex3 descriptor/open-
+close trajectory contract, not MoveIt or assembly code.
+
+### Immediate retraction: physics admission must not be heuristic
+
+The previous paragraph's plan to send only five sweep/collision-qualified
+candidates to Newton is retracted. It repeated the same conceptual mistake in
+a more elaborate form: a project-written occupancy or approach heuristic was
+still deciding which neural outputs were permitted to receive the real test.
+The sweep-occupancy numbers remain useful diagnostics for explaining a result,
+but they are not an admission filter and must not select the grasp.
+
+The corrected contract is:
+
+1. GraspGenX inference returns the candidate poses and discriminator scores.
+2. Every returned candidate is placed in an otherwise identical Newton world.
+3. Every world receives the same actual current-Dex3 model, 45 mm AprilCube,
+   table, gravity, open/close trajectory, simulation parameters, and motion
+   timing.
+4. Newton contact dynamics determines which candidates close on, retain, and
+   carry the cube. A render, sweep box, top-down score, table-distance query,
+   or hand-written pose correction cannot remove a candidate first.
+5. Only after the complete physical result table exists may discriminator
+   confidence break ties among physics-successful candidates.
+
+This is also the architecture used by NVIDIA's released `GraspDataGen`:
+candidate grasps are replicated into many physics environments and validated
+in batches (its implementation uses PhysX/Isaac Lab and allows up to 1,024
+environments). For this project the equivalent mechanism is Newton 1.0's
+`ModelBuilder.replicate`, which preserves isolated collision worlds while
+Warp executes them on the GPU. We will process the full GraspGenX output in
+GPU-sized chunks and rerun only the physics-selected winner through the same
+Newton exporter for the review video. This is not a second preview path.
+
+The partially rendered candidate-158 run was stopped as soon as this boundary
+was corrected. Its output is not a result and must not be used for selection.
+
+### All-candidate Newton evaluator implemented
+
+`third_party/GraspGenX/end2end/hand_only_grasp_eval.py` now implements the
+corrected boundary. It passes every pose actually returned by
+`run_graspgen(...)` directly into Newton. There is no render gate, sweep-box
+gate, top-down rule, table-distance rule, collision admission query, manually
+selected candidate, or manually altered grasp transform. The discriminator
+score is retained as metadata and may only rank candidates after physics has
+reported successful retention.
+
+Each candidate receives an isolated copy of the same hand/object/environment
+world using Newton's `ModelBuilder.replicate`. The reusable world template is
+built once, including the exact current right-Dex3 descriptor, the generated
+45 mm AprilCube mesh, table, collision decomposition, material parameters,
+gravity, and solver settings. Candidate batches copy that one template rather
+than rebuilding collision geometry, so batch boundaries cannot silently
+change the tested scene. The only per-world difference is the GraspGenX pose.
+
+Every world then receives the same prescribed experiment: settle the cube,
+move the open hand from the common upstream-style local-Z pregrasp offset to
+the returned grasp pose, hold open, command the descriptor's close trajectory,
+hold closed, lift the hand by 0.20 m, and hold again. Newton simulates all
+contacts and the cube trajectory. The result file records the complete pose,
+confidence, cube lift, cube-to-hand relative drift, final-hold drop, numerical
+health, and the resulting retention decision for every candidate. Only after
+that table is complete is one physics result replayed through the same Newton
+scene/exporter to produce a review video. If no candidate retains the cube,
+the replay is explicitly labelled a failure diagnostic rather than a selected
+grasp.
+
+The first batching smoke test also exposed an important Newton indexing issue.
+A floating root has seven position coordinates (three translations plus a
+quaternion) but six velocity/control coordinates. Reusing `joint_q` indices
+for `joint_target_pos` therefore shifted later replicated worlds and placed
+the last finger target one element beyond the controller array. The evaluator
+now obtains finger state indices from each finalized replica's
+`joint_q_start`, and controller indices independently from `joint_qd_start`.
+No world-stride assumption remains.
+
+The corrected compressed smoke test asked upstream GraspGenX for four grasps.
+Its built-in minimum-grasp retry behavior returned 24 poses over six
+iterations, and all 24 were simulated—not truncated back to four. They ran in
+three eight-world batches; every batch contained exactly 80 bodies, 80 joints,
+and 2,024 shapes, all 24 result indices were present, and no world produced a
+NaN. The deliberately compressed 18-frame motion yielded no accepted grasp,
+as expected; it validates batching and accounting only and is not grasp
+evidence. Its audit output is
+`artifacts/dex3_all_raw_newton_smoke_cached3/physics_results.json`.
+
+The first full-timing run used that same deterministic 24-pose inference
+result. All 24 candidates completed the 560-frame Newton experiment in three
+identical eight-world batches with no NaNs. None passed the physical
+lift/retention criteria. Candidate 16 was replayed only as an explicitly
+labelled `no_physics_pass_diagnostic`; it did not grasp the cube. Its contact
+launched the cube out of the camera view before the empty hand lifted, which
+is also reflected by 22.95 m apparent cube rise, 63.33 m hand-relative drift,
+and a 0.555 m one-frame cube displacement. Those values reject the candidate
+as an ejection; they are not evidence of lift success. The complete result
+table and Newton replay are in
+`artifacts/dex3_all_raw_newton_generic_24/physics_results.json` and
+`artifacts/dex3_all_raw_newton_generic_24/simulation.mp4`.
+
+This result means only that none of this 24-candidate sample retained the cube.
+It does not justify a geometric prefilter and does not yet establish that the
+full 480-candidate inference pool fails. A temporary 64-world compressed test
+also completed successfully on the A5500 (640 bodies, 640 joints, 15,808
+shapes), confirming that larger GPU batches are structurally possible. Batch
+size is therefore only a throughput/memory parameter; it must never alter the
+candidate set or outcome contract.
+
+### Production run stopped: environment contact was missing from success
+
+The first 480-candidate production run was stopped during its second batch
+after reviewing the earlier candidate-16 diagnostic more carefully. The hand
+visibly collides with the table. That candidate was never marked as a grasp
+success—the retention metrics rejected its cube ejection—but the visual
+exposed a missing part of the evaluator's physical success contract.
+
+The current hand-only scene prescribes the grasp-frame trajectory by moving a
+kinematic hand root. Newton computes hand-table contacts, but the table cannot
+push that prescribed root away or stop its commanded approach. Consequently,
+a table-infeasible raw grasp can be driven into the table and create very large
+contact impulses. Checking cube retention alone is insufficient because a
+different table-colliding candidate might conceivably retain the cube after an
+unphysical forced approach.
+
+The correction must not reintroduce a geometric prefilter. Every GraspGenX
+candidate must still enter Newton. Newton's simulated contact result must
+instead report at least two independent physical outcomes for every world:
+
+1. whether any Dex3 collision shape contacted the table during approach,
+   closure, or lift; and
+2. whether the cube stayed with the hand through lift and final hold.
+
+A task-valid tabletop grasp requires retention **and** no hand-table contact.
+This is a post-simulation contact outcome, not a render judgment or a
+candidate-admission heuristic. A raw candidate that contacts the table remains
+in the complete result table with an explicit physical failure reason. The
+evaluator must also stop choosing the largest apparent cube rise as its
+no-success replay because a numerical/contact ejection can maximize that
+quantity. If no candidate passes, it must report no selected grasp; any video
+must be labelled by its specific failure reason rather than presented as the
+best candidate.
+
+No result file was produced by the interrupted 480-candidate run, and it must
+not be resumed or interpreted until the Newton hand-table contact measurement
+is implemented and validated.
+
+### Deeper correction: the grasp test and tabletop motion test were conflated
+
+The preceding correction is necessary but incomplete. Candidate 16 was not
+merely a lateral hand that happened to touch the table. It was a bottom-up raw
+grasp. Its canonical grasp-frame origin was at `z=0.368 m` while the tabletop
+was at `z=0.500 m`; its local `+Z` axis was nearly world-up. Applying the copied
+cuRobo `-0.10 m` local-Z pregrasp therefore placed the hand still lower and
+commanded it upward through the table.
+
+Across the deterministic 24-candidate sample, the raw approach orientations
+were 8 bottom-up, 12 lateral, and 4 top-down. Eleven of 24 grasp-frame origins
+were below the tabletop. This is expected from object-only GraspGenX inference:
+it proposes final object-relative grasps in free space and does not know about
+the supporting table. The original downstream cuRobo path couples the local-Z
+offset to collision-aware planning; copying the offset while replacing that
+planner with an unstoppable prescribed hand-root trajectory was incorrect.
+
+The 24-candidate tabletop result must therefore be discarded as evidence about
+GraspGenX grasp quality or the current Dex3 descriptor. It combined three
+different questions into one invalid experiment:
+
+1. Is the returned object-relative grasp physically stable for this hand?
+2. Is the final grasp and approach compatible with the table?
+3. Can the robot arm reach and execute that approach?
+
+The upstream NVIDIA GraspDataGen validator keeps question 1 isolated: gravity
+is disabled, the gripper is fixed, the object is placed at the candidate's
+relative transform, the fingers close, and external tug forces are applied in
+multiple directions. It does not insert a table or turn the grasp pose into an
+unplanned approach trajectory. Contact sensors and object-relative motion
+determine success.
+
+The correct next baseline is to reproduce that intrinsic validation contract
+in Newton for the exact current Dex3 and 45 mm cube. Every GraspGenX candidate
+still enters physics. Only after stable candidates exist should tabletop scene
+feasibility and MoveIt/OMPL approach planning be evaluated as a separate layer.
+This separation is not a heuristic filter; it restores the responsibilities
+that the previous test accidentally collapsed.
+
+### Stop inventing the missing middle: use the released end-to-end path
+
+The proposed custom free-space Newton validator is not the next project step.
+It would be another replacement for functionality already released around
+GraspGenX. The repository's own `end2end/README.md` defines the intended stack:
+
+`GraspGenX -> scene collision filtering -> cuRobo plan_grasp -> Newton replay`.
+
+`e2e_grasp_demo.py` already implements candidate-frame conversion, robot-base
+conversion, goal-set construction, local-tool-frame approach offsets,
+collision-aware `plan_grasp`, chosen-candidate indexing, approach/grasp/lift
+trajectory extraction, task sequencing, Newton/MuJoCo dynamic playback, and
+trajectory/video export. The hand-only evaluator copied pieces of this
+contract and omitted the planner. It must not remain an implementation path.
+
+The installed upstream cuRobo checkout also already ships the exact relevant
+robot assets:
+
+- `curobo/content/configs/robot/unitree_g1.yml`;
+- `robot/g1/g1_29dof_with_hand_rev_1_0.urdf`;
+- current left/right Dex3 meshes and collision spheres; and
+- Unitree G1 coverage in cuRobo's IK benchmark and reactive-control example.
+
+Therefore the next implementation boundary is declarative adaptation only:
+an end-to-end GraspGenX robot YAML referencing the shipped `unitree_g1.yml`,
+the chosen palm as `tool_frame`, the descriptor-established grasp-to-palm
+transform, the known seated start configuration/base placement, and the
+AprilCube table scene YAML. We should exercise the existing
+`e2e_grasp_demo.py` entry point before adding or changing any planning or
+physics algorithm.
+
+This also retracts the rule that every raw inference pose must be replayed in
+Newton for the end-to-end pick. In the released architecture, all generated
+poses may enter the collision/planning candidate set, but only a
+collision-free, reachable grasp selected by cuRobo receives an executable
+trajectory and Newton replay. Newton validates that planned execution; it is
+not a replacement for scene-aware motion planning.
+
+### Scope clarification: do not integrate the seated scene yet
+
+The released end-to-end path above is the correct later pickup pipeline, but
+it is not the immediate milestone. The current unanswered question is
+narrower: does the exact current-Dex3 embodiment physically retain the 45 mm
+cube at poses returned by GraspGenX? That test needs the descriptor/hand, cube
+mesh, candidate transforms, closing command, and a released grasp-physics
+validator. It does **not** need the G1 arms, seated joint state, robot base,
+chair, table, or motion planner.
+
+The table and seated G1 configuration enter only after intrinsic grasp
+retention is demonstrated. At that point the released collision/planning path
+answers whether a retained grasp is reachable in the actual tabletop scene.
+Do not collapse these milestones again.
+
+## 2026-07-20 — cuRoboV2 execution and attachment audit
+
+The first demo has a specified sequence: one hand holds the T, the worker
+attaches U, the holder's carried model becomes T+U, the worker picks and
+attaches the cube, and the holder's model becomes T+U+cube before place and
+detach. The implementation problem is reliable motion and explicit scene-state
+transitions, not task-sequence search.
+
+The motion/attachment side was tested against official cuRoboV2 v0.8.0 commit
+`4ea77366ca48ee453e7df139e39fa6532af49f3b`. Its upstream attachment tests (18)
+and motion-planner tests (72) passed. A separate exact-G1 contract probe loaded
+the shipped rev-1.0 G1/Dex3 model and verified multi-tool planning, two
+independent named attachment slots, planning with both slots active, explicit
+detach of one without disturbing the other, and successive holder-model
+updates for T -> T+U -> T+U+cube. It also verified that disabling a named
+target world object leaves the table enabled. The probe used safe synthetic
+spheres and small motions; it establishes API capability, not actual demo
+reachability or grasp success.
+
+Important v0.8 adapter constraints were also found. The public
+`MotionPlanner.attachment_manager` convenience property is broken in the tag,
+the underlying manager's no-argument bookkeeping assumes one attachment, and
+its world-pose-offset helper always uses the first tool frame. We must access
+the underlying manager deliberately, always name the hand/object on update and
+detach, and supply collision spheres already expressed in the correct
+hand-specific attachment-link frame. Collision permissions are object- or
+link-wide rather than pair-specific. For final grasp contact, disable only the
+target object's world copy; never globally disable the Dex3 contact links,
+because doing that would also hide the table from those links.
+
+Decision: use cuRoboV2 as the G1 motion backend and write a thin fixed-sequence
+executor that owns explicit scene effects (`attach`, `snap_and_transfer`,
+`replace_composite`, `place_and_detach`). Keep GraspGenX as the candidate
+generator, Newton as the offline physical grasp qualifier, and add the ROS 2
+hardware bridge later. Do not add task-sequence search or MoveIt merely for
+sequence authoring. Full evidence and the next visual checkpoint are in
+`docs/execution_stack.md`.
+
+## 2026-07-21 — RETRACTED: current-Dex3 cube grasp validation
+
+This entry is retained as an audit trail, but its validation conclusion and
+pass/fail visuals must not be used. The imported hand USD had intra-hand
+self-collision enabled, unlike the released GraspGenX Newton playback. During
+finger closure, overlapping or adjacent hand collision shapes generated
+unstable impulses. Batched copies could eject the cube metres away. The
+corrected experiment is recorded in the next entry.
+
+The immediate intrinsic-grasp milestone is complete for the right hand. The
+validator uses the exact current official Unitree Dex3-1 right URDF and meshes
+from `xr_teleoperate` commit
+`7dc9aa1a6edbf4a9f4f887d8ab6fc449ea5135f6`. The generated
+`dex3_rev1_right` GraspGenX descriptor and the Isaac USD both derive from that
+same geometry. This is not the older hand bundled with the original GraspGenX
+demo.
+
+The object is the actual generated 45 mm AprilCube mesh at
+`generated/aprilcube_parts/cube_head/grasp_mesh.obj`. Its watertight volume is
+90.10 cm3. The validator uses 0.12 kg: a conservative value for a fully solid
+PLA print (approximately 0.112 kg) plus marker/connector allowance. Replace
+this value with the measured finished-part mass before hardware calibration.
+The upstream GraspDataGen default was a hard-coded 1.0 kg, which explained the
+earlier 0/120 result and was not representative of this printed cube.
+
+`tools/build_dex3_isaac_grasp_input.py` copies every GraspGenX
+`object_T_grasp` transform verbatim. It adds only the exact current-Dex3 open
+and close joint dictionaries and the object/validator configuration. Each
+entry now preserves its original candidate ID, neural confidence and neural
+transform under `graspgenx_source`; GraspDataGen is then free to store its
+binary physics result and final post-tug transform without destroying
+provenance.
+
+The released GraspDataGen/Isaac/PhysX validation contract is preserved:
+
+- 250 Hz physics;
+- one second for the fingers to close and settle;
+- five 0.5-second object-force tugs in `+Z`, `+Y/+Z`, `-Y/+Z`, `+X/+Z`, and
+  `-X/+Z` directions;
+- each direction normalized by the upstream parser and applied at one object
+  gravity-equivalent (`mass * 9.81`);
+- success only when both configured opposing contact sensors still report
+  nonzero force after every tug.
+
+All 120 raw GraspGenX candidates entered a single parallel physics batch.
+Fifteen passed: `17, 25, 34, 43, 47, 48, 54, 64, 66, 74, 87, 104, 110,
+112, 116`. The highest neural-ranked passing proposal is `grasp_17`, with
+GraspGenX confidence `0.7723388671875`. The qualified result is
+`artifacts/isaac_grasp_validation/dex3_cube_mass012_final_v2/grasp_sim_data/dex3_rev1_right/grasp_mesh.yaml`.
+
+Candidate 17 was rerun alone with an Isaac Lab RGB camera. After the full tug
+sequence, the two monitored contact-force vectors were approximately
+`[0.678, 0.621, -1.449] N` and `[-1.288, -1.214, 1.929] N`; the same run was
+recorded as a physics success. Visual styling uses USD Preview Surface
+bindings and directional lighting only; it does not author or change any
+physics material, mass, collision or actuator property.
+
+Visual evidence:
+
+- sequential close-up review:
+  `docs/assets/dex3_cube_review10_sequential_closeups.mp4` (1280x960,
+  30 fps, 45.33 s). It presents the same ten candidates one at a time for
+  their complete closure-and-tug runs, labeled with candidate ID and the
+  final physics verdict;
+- close-up pass video:
+  `docs/assets/dex3_cube_grasp17_isaac_validation.mp4` (960x720, 30 fps,
+  4.53 s);
+- readable comparison video:
+  `docs/assets/dex3_cube_review10_isaac_validation.mp4` (1600x960, 30 fps,
+  4.53 s). It contains the five highest-confidence failures (`0-4`) and five
+  highest-confidence successes (`17, 25, 34, 43, 47`), with final red/green
+  borders taken directly from the physics result;
+- complete 120-candidate overview, retained for audit although too dense for
+  routine viewing: `docs/assets/dex3_cube_all120_isaac_validation.mp4`;
+- final candidate-17 still:
+  `docs/assets/dex3_cube_isaac_grasp17_pass.png`.
+
+The RGB frames come from Isaac Lab cameras in the same validator run, not from
+an independently reconstructed renderer. Headless mode suppresses only the
+GUI window; `--enable_cameras` still loads Isaac's RTX rendering experience.
+It was used because the local headed viewport path produced black frames and
+Vulkan `DEVICE_LOST` crashes.
+
+Scope limit: this proves intrinsic simulated retention for the exact hand,
+cube, controller profile and assumed cube mass. It does not yet prove table
+clearance, G1 arm reachability, pickup execution, hardware grip reliability or
+magnetic assembly. Those remain later planning and hardware milestones.
+
+## 2026-07-21 — self-collision regression isolated; matching-hand A/B rerun
+
+The low-success investigation first returned to the released GraspGenX
+`unitree_g1` descriptor and its matching older Unitree hand geometry. The
+upstream two-finger validator is deliberately batched, so serial execution was
+not accepted as a fix. Instead, `grasp_0` was duplicated ten times in one
+Isaac/PhysX batch.
+
+With our original imported USD, ten identical inputs evolved into different
+physical states: several cubes were ejected metres away and only one retained
+the cube. The result remained unstable when the custom explicit `q_close`
+target path was bypassed in favor of GraspDataGen's untouched joint-limit
+target branch. This cleared the batching kernel and explicit target code.
+
+The regression was in `tools/import_dex3_isaac_asset.py`: it had set
+`self_collision=True`. GraspGenX's released Newton playback passes
+`enable_self_collisions=False` when it imports the robot. Reimporting the same
+older Unitree URDF with only intra-hand self-collision disabled made all ten
+identical environments pass. The retained final object poses and joint states
+vary slightly from GPU contact nondeterminism, but no object was numerically
+ejected and the binary result was 10/10.
+
+Both canonical Isaac hand assets have now been regenerated with
+`self_collision: false`. Hand-object collisions remain enabled; this setting
+only prevents collision shapes belonging to the same hand articulation from
+applying forces to one another. The importer keeps an explicit
+`--self-collision` diagnostic override, but its default now matches the
+released GraspGenX Newton contract.
+
+The root USD file alone was an insufficient provenance key because Isaac's
+converter stores articulation physics in referenced files under
+`configuration/`. The root file hash therefore did not change when the
+self-collision policy changed. `tools/build_dex3_isaac_grasp_input.py` now
+also writes `gripper_usd_package_sha256`, which hashes the root USD and all of
+its generated USD sublayers.
+
+Corrected, one-batch, 120-candidate **pipeline** comparison using the same
+45 mm cube, object point sample/seed, released checkpoints, 0.12 kg mass,
+controller gains, explicit descriptor close configuration, tug sequence, and
+requirement for object contact in at least two of three finger chains:
+
+- released matching older Unitree hand and released descriptor: 110/120;
+- current Dex3-1 hand and our regenerated current-hand descriptor: 16/120.
+
+This is deliberately not a pose-matched comparison of hand mechanics. Each
+descriptor conditions GraspGenX separately, so it produces a different ranked
+set of `object_T_G` transforms and the two hands visibly approach the cube in
+different ways. Also, the canonical `G` frame has a different fixed mapping to
+each physical hand. Applying the same numeric `object_T_G` to both assets would
+therefore not create the same object-relative palm pose. The comparison says
+that the complete released hand+descriptor pipeline is healthy while our
+current-hand hand+descriptor pipeline remains weak; by itself it cannot assign
+that weakness specifically to inference, the descriptor geometry/frame, or
+the current hand's closure mechanics.
+
+The current-hand run was repeated from a fresh Isaac process. It again
+produced exactly the same 16 passing candidate IDs: `17, 25, 26, 34, 43, 47,
+48, 54, 64, 66, 74, 87, 104, 110, 112, 116`. This establishes that the
+remaining current-hand drop is not the self-collision regression and is not a
+failure of upstream batching. It points back to the current-hand
+descriptor/checkpoint contract and must be investigated before calling the
+current Dex3 grasp pipeline complete.
+
+Evidence:
+
+- identical-input failure with self-collision enabled:
+  `artifacts/isaac_grasp_validation/original_unitree_cube/repeat10_explicit_target/grasp_sim_data/unitree_g1_original/grasp_mesh.yaml`;
+- identical-input 10/10 control with self-collision disabled:
+  `artifacts/isaac_grasp_validation/original_unitree_cube/repeat10_no_self_collision/grasp_sim_data/unitree_g1_original_no_self_collision/grasp_mesh.yaml`;
+- corrected released matching-hand result:
+  `artifacts/isaac_grasp_validation/original_unitree_cube/physics_no_self_collision/grasp_sim_data/unitree_g1_original/grasp_mesh.yaml`;
+- corrected current-hand results:
+  `artifacts/isaac_grasp_validation/current_dex3_cube/physics_no_self_collision/grasp_sim_data/dex3_rev1_right/grasp_mesh.yaml` and
+  `artifacts/isaac_grasp_validation/current_dex3_cube/physics_no_self_collision_repeat/grasp_sim_data/dex3_rev1_right/grasp_mesh.yaml`.
+
+## 2026-07-21 — current-Dex3 descriptor root cause and corrected contract
+
+The descriptor investigation is now separated into evidence, rejected
+hypotheses, and the contract we will use. This entry supersedes the claims in
+the 2026-07-18 “current Dex3 descriptors, visual gate” entry; that earlier
+entry remains above only as an audit trail.
+
+### Retraction
+
+The earlier statement that the upstream GraspGenX wizard “incorrectly” chose
+canonical Z as the current hand's open closing axis was false. Using the exact
+current terminal meshes, the upstream estimator reproducibly finds its largest
+open terminal separation on current-frame Z. That is a real consequence of
+the current zero-joint hand's L-shaped open posture.
+
+The mistake was ours: after observing that L-shaped geometry, the first builder
+created a visually fitted axis-aligned vector
+
+```text
+open: [0.05, 0.06, 0.10] at [-0.02858, 0, 0.074]
+half: [0.04, 0.06, 0.06] at [-0.00458, 0, 0.091]
+```
+
+while still claiming it preserved the released checkpoint's convention. It
+did not. In the pinned GraspGenX code, the `sweep_volume_v2` networks consume
+only these 12 numbers. They do not see the current URDF, finger meshes, joint
+positions, or trajectory. X is used as aperture/width and Z as
+approach/fingertip depth; our first vector encoded a 50 mm X aperture and a
+100 mm Z depth. It was a literal-looking box around an asymmetric posture but
+a bad learned-morphology input.
+
+### Isolation experiment 1: cross proposals and physical hands
+
+One 120-environment Isaac/PhysX batch was run for every pairing:
+
+```text
+released proposals -> released hand     110/120
+released proposals -> current hand      118/120
+first-current proposals -> released hand  5/120
+first-current proposals -> current hand  16/120
+```
+
+The current physical hand succeeds on the released proposal distribution; the
+first-current proposals fail on both hands. This isolates the large regression
+to the descriptor-conditioned candidate distribution rather than current-hand
+contact mechanics or batched physics.
+
+Evidence is under `artifacts/isaac_grasp_validation/cross_matrix/`, with the
+matching-hand controls under the adjacent `current_dex3_cube/` and
+`original_unitree_cube/` directories.
+
+### Isolation experiment 2: complete four-group factorial
+
+All 16 combinations of current versus released `extents`, `offset`,
+`extents2`, and `offset2` were inferred with the same seed and evaluated in a
+single 1,920-environment physics run. Mask bits are ordered by those four
+groups, with `1` selecting released:
+
+```text
+0000  16    0001  64    0010  10    0011  56
+0100  15    0101  65    0110  10    0111  58
+1000 111    1001 116    1010 111    1011 118
+1100 108    1101 116    1110 112    1111 118
+```
+
+Replacing only the open extents (`1000`) raises retention from 16/120 to
+111/120. Replacing only the half-open center (`0001`) raises it to 64/120.
+The dominant defect is therefore the open-box conditioning, with an additional
+half-open-center effect. Complete inputs, raw outputs, provenance, and physics
+results are in `artifacts/dex3_sweep_ablation/`.
+
+### Rejected explanation: a simple canonical-frame rotation
+
+The exact open terminal centroids imply a 53.1326-degree Y rotation that aligns
+the thumb-to-opponents separation with X. `tools/run_dex3_frame_ablation.py`
+ran inference in that frame and converted every pose back into the unchanged
+current execution frame before physics. Results were:
+
+```text
+rotation only                         0/120
+rotation + XY centering               0/120
+rotation + XY centering + Z=70 mm    31/120
+```
+
+This rejects that specific, straightforward frame realignment as the fix. It
+does not establish that no other descriptor/frame redesign could work.
+
+### Current-geometry semantic check and fresh seeds
+
+A second vector placed the wizard-measured current open and half-open gaps
+(84.728 mm and 38.543 mm) in the descriptor's X aperture slots while retaining
+the released transverse/depth dimensions and offsets. It was compared with the
+exact released Unitree 12-vector on the exact current hand:
+
+```text
+seed       19    29    39    49      aggregate
+current aperture semantic vector
+          116   115   118   118     467/480 (97.29%)
+released Unitree vector
+          118   119   115   120     472/480 (98.33%)
+```
+
+The five-grasp aggregate difference is small and sampling-dependent. Both
+results confirm the diagnosis: the failed first descriptor supplied the wrong
+learned semantics; the current physical hand and closing trajectory are able
+to retain properly conditioned candidates.
+
+### Selected contract and its exact limitation
+
+The manifest now uses the released Unitree vector unchanged:
+
+```text
+open: extent [0.10, 0.06, 0.04], center [0.000, 0.000, 0.070]
+half: extent [0.04, 0.06, 0.04], center [0.007, 0.000, 0.060]
+```
+
+Its status is `physics_validated_release_checkpoint_proxy`. “Proxy” is
+intentional: the vector is compatible with what the released network learned;
+it is not claimed to be the exact axis-aligned physical swept volume of the
+current L-shaped hand. The exact current Unitree URDF, current `G_T_palm`,
+GR00T open/close trajectory, collision meshes, and current Isaac asset remain
+unchanged and authoritative downstream.
+
+The descriptor builder now copies those final offsets directly. It no longer
+shifts the conditioning box when it laterally centers the physical palm under
+`G`; the old shift had implicitly assumed neural invariance to a descriptor
+origin reparameterization that GraspGenX does not promise.
+
+### Canonical-path rerun
+
+After rebuilding the normal named `dex3_rev1_right` descriptor, the ordinary
+project inference command—not an ablation helper—generated 120 cube proposals.
+`tools/build_dex3_isaac_grasp_input.py` copied every `object_T_G` unchanged into
+one current-hand Isaac/PhysX batch. Exactly 118 survived the full close and
+five-tug sequence. The two non-retained IDs were `grasp_72` and `grasp_97`.
+
+The validator saves only successes unless `--output_failed_grasp_locations` is
+requested; therefore its console message “118 successes and 0 fails” means
+118 saved successes, not that 120 were tested successfully.
+
+The exact current left descriptor and hand were then tested as a mirror
+contract. The left USD was imported from the generated current left descriptor
+with the same current gains and `self_collision=false`. The identical 120
+canonical `object_T_G` poses and the signed left close profile were replayed in
+one batch. The left hand retained 116/120; failures were `37`, `96`, `97`, and
+`98`. The right hand's failures were `72` and `97`. A grossly wrong left
+`G_T_palm` would have produced the old near-zero-retention failure mode, so this
+strong mirrored result validates the left conversion at the level required for
+the current checkpoint. The four-candidate right/left pass-set disagreement is
+recorded without a claimed cause; exact symmetry would require its own
+controlled contact/tolerance study.
+
+Canonical evidence:
+
+- `artifacts/dex3_descriptor_canonical_validation/raw/provenance.json`;
+- `artifacts/dex3_descriptor_canonical_validation/isaac_input.yaml`;
+- `artifacts/dex3_descriptor_canonical_validation/physics/grasp_sim_data/dex3_rev1_right/grasp_mesh.yaml`;
+- `artifacts/dex3_descriptor_canonical_validation/left_physics/grasp_sim_data/dex3_rev1_left/grasp_mesh.yaml`;
+- `artifacts/dex3_validation/graspgenx_frame_contract.json`; and
+- `docs/dex3_rev1_descriptor.md`.
+
+A camera-enabled rerun selected eight retained candidates (`0–4`, `117–119`)
+and the two non-retained candidates (`72`, `97`) from that exact canonical
+set. It reproduced 8 passes and 2 failures. The camera ran inside the same
+Isaac physics simulation; the readable 45.33-second sequence is
+`docs/assets/dex3_descriptor_corrected_review10_sequential.mp4`. Each candidate
+is shown for its complete 4.53-second closure/tug run, with the final green or
+red border taken directly from the validator result. The synchronized grid
+source is `docs/assets/dex3_descriptor_corrected_review10_grid.mp4`.
+
+Claim boundary: this resolves the current-Dex3 descriptor failure for both
+hands on the 45 mm cube in intrinsic simulation. It does not yet qualify T/U
+parts, tabletop approaches, arm reachability, hardware grip force, or assembly.
+
+## 2026-07-21 — quick intrinsic T/U grasp screen
+
+The corrected named `dex3_rev1_right` descriptor was run on the actual
+watertight T and U meshes. For each part, GraspGenX generated 480 stochastic
+proposals and the top 120 by neural confidence entered one Isaac/PhysX batch
+unchanged. The number 120 is a project evaluation budget chosen for useful
+diversity and convenient GPU batching; it is not a GraspGenX constant or an
+acceptance threshold. A future offline library should sample more candidates
+across multiple seeds and retain qualified grasps by region and reachability.
+
+The cube print uses 30 g of filament. Assuming the same effective material
+density and print strategy, mesh-volume ratios give provisional masses:
+
+```text
+T / cube volume ratio = 6.0353 -> T = 181.1 g
+U / cube volume ratio = 7.0427 -> U = 211.3 g
+```
+
+These are estimates until the finished parts are weighed. Earlier solid-volume
+estimates of 724 g and 845 g are discarded. A 120 g diagnostic was also run to
+separate load sensitivity from geometry; it is not the expected deployment
+mass.
+
+Right-hand close-and-five-tug results:
+
+```text
+part       120 g control     30 g cube-scaled mass
+T          65/120            43/120 at 181.1 g
+U          43/120             9/120 at 211.3 g
+```
+
+Therefore both parts have intrinsic candidates, but U is substantially more
+load/contact-sensitive. This is not evidence of another descriptor collapse.
+
+A camera-enabled replay covered eight diverse passing T candidates and all
+nine passing U candidates. Every selected candidate reproduced its pass. T
+candidate `grasp_67` visibly holds the central stem while leaving the shoulder
+crossbar exposed, satisfying the holder-grasp requirement at the intrinsic
+hand/object level. The U set contains leg-side grasps that leave the bridge
+available, but their eventual connector and approach clearance still needs the
+assembly-scene filter.
+
+Evidence:
+
+- `artifacts/dex3_tu_canonical_validation/raw/provenance.json`;
+- `artifacts/dex3_tu_canonical_validation/t_body_right_physics_mass_from_30g_cube/grasp_sim_data/dex3_rev1_right/grasp_mesh.yaml`;
+- `artifacts/dex3_tu_canonical_validation/u_legs_right_physics_mass_from_30g_cube/grasp_sim_data/dex3_rev1_right/grasp_mesh.yaml`;
+- `docs/assets/dex3_t_body_passing_grasps_grid.mp4`; and
+- `docs/assets/dex3_u_legs_passing_grasps_grid.mp4`.
+
+Claim boundary: these are free-space intrinsic right-hand grasps. They do not
+yet prove table-clear approaches, G1 arm reachability, left-hand T/U retention,
+connector clearance, or hardware grip force.
+
+## 2026-07-21 — G1 arm in the unchanged upstream Franka tabletop scene
+
+The first upper-body scene placed the table and pelvis using provisional
+hand-selected heights. That layout has been superseded for the current control
+experiment. The table geometry, table pose, object offset, and camera now match
+GraspGenX's `tabletop_single_nobin.yaml` exactly; only the object scale and
+pre-rotation differ because the AprilCube mesh is already in metres and already
+upright.
+
+The G1 root placement is derived from the robot models rather than guessed:
+
+```text
+upstream Franka base                    (0.0000000, 0.00000, 0.30000)
+upstream Franka joint-1/shoulder world  (0.0000000, 0.00000, 0.63300)
+G1 right shoulder in pelvis frame       (-0.0000072, -0.10021, 0.29178)
+derived G1 pelvis world                 (0.0000072, 0.10021, 0.34122)
+```
+
+This overlays the G1 right shoulder position on the Franka shoulder while
+leaving both robots' base axes aligned. A collision-aware cuRobo IK solution
+places the G1 palm at the upstream Franka home-palm pose:
+
+```text
+world palm position  (0.1612830, 0.0000001, 0.9368466)
+right-arm q          [-3.0834400654, -1.0238929987, 2.1113719940,
+                       0.2953709960, -0.5985820293, -0.4270730019,
+                       0.7260659933]
+```
+
+The derived start state passed cuRobo self- and table-collision checking. The
+generated single-arm derivative now removes the unused left-arm subtree. This
+was necessary because the previously fixed left hand—not the active right
+arm—hung inside the unchanged Franka table. Unitree's source URDF is not
+modified. The generated model has 21 links and exactly 14 movable joints: seven
+right-arm joints plus seven current-Dex3 joints; cuRobo plans only the seven arm
+joints and locks the fingers open.
+
+With the actual 45 mm cube, the unchanged upstream scene is:
+
+```text
+tabletop world z     0.5000 m
+cube center world    (0.5000, 0.0500, 0.5225) m
+G1 pelvis world      (0.0000072, 0.10021, 0.34122) m
+```
+
+The first exact upstream-style run used `graspmoe`, 200 diffusion proposals,
+the top 80 combined candidates (44 diffusion + 36 OBB in that run), cuRobo's
+collision world, the `pick_and_lift` task, Newton dynamic playback, and the
+measured 30 g cube mass. It stopped correctly before Newton because cuRobo
+could not find a valid approach.
+
+A repeated seed-0 geometric/IK audit isolated the cause:
+
+```text
+combined GraspMoE candidates                         80
+exact open-Dex3 final poses clearing the tabletop     0
+best exact open-hand minimum world z                 0.48954 m
+tabletop world z                                     0.50000 m
+best remaining penetration                           10.46 mm
+collision-free exact IK without the table
+  pregrasp / final                                    2 / 2
+collision-free exact IK with the table
+  pregrasp / final                                    0 / 0
+```
+
+Therefore the shoulder-aligned baseline is valid and should not yet be shifted
+forward. G1 reach is restrictive—only two candidate orientations converged in
+free space—but the immediate blocker is stronger: every returned exact
+open-hand pose intersects the tabletop. Moving the robot cannot repair that
+object/hand/table geometry. No trajectory or MP4 was produced because planning
+correctly rejected all candidates before simulation.
+
+The upstream closure contract remains intact. cuRobo plans with the hand open;
+`PickAndLiftTask` appends `close_fingers` before the lift; Newton drives the
+gripper and resolves contact. Upstream two-finger profiles use one master plus
+URDF/profile mimic coupling as appropriate. The current Dex3 profile applies
+the same task contract to seven independently commanded finger joints.
+
+## 2026-07-21 — contact-centric cube grasp atlas specified
+
+The project is intentionally returning from the incomplete G1/curobo scene to
+the last proven boundary: canonical GraspGenX proposals and exact-hand
+Isaac/PhysX qualification. Before further implementation, the researched
+contact-centric grasp-library idea has been reduced to a concrete project
+specification at `docs/dex3_aprilcube_grasp_atlas_spec.md`.
+
+The first implementation is deliberately only a cube vertical slice:
+
+```text
+4,096 diffusion-only canonical cube proposals
+        ↓ every proposal unchanged
+current right and left Dex3 Isaac/PhysX close-and-five-tug trials
+        ↓ measured per-link contacts at six phase boundaries
+six AprilCube face regions
+        ↓
+deterministic side-specific contact families
+        ↓
+real passing representatives + static HTML + sequential MP4s
+```
+
+Important scope decisions:
+
+- use the existing GraspGenX wrapper and GraspDataGen simulator rather than a
+  parallel implementation;
+- inference runs once because the canonical left/right conditioning is shared,
+  while physics runs independently for both exact hands;
+- use 16 reproducible batches of 256 proposals, retain every diffusion output,
+  and do not admit GraspMoE/OBB candidates;
+- preserve the existing physics success rule and add contact tracing only as
+  an optional observer;
+- use the cube's existing generated voxel-face/AprilTag metadata instead of
+  generic segmentation;
+- group by body-level digit participation, palm contact, and object-frame
+  approach sector; keep detailed link-to-face mappings diagnostic only;
+- select only real physics-passing members as medoid/backups; and
+- require a visual cube gate before scaling the same schema to T/U.
+
+The specification explicitly defers perturbation sweeps, magnet/connector
+roles, stable placements, a compatibility graph, table/arm reachability,
+cuRobo, and hardware. Those are useful later, but none is required to prove
+that the contact atlas is correct. No atlas implementation was performed in
+this step.
+
+## 2026-07-21 — preserve the real palm body in hand-only Isaac qualification
+
+The first Isaac hand assets inherited GraspDataGen's/default Isaac Lab
+`merge_fixed_joints: true`. In our descriptor URDF, the canonical `world` link
+is fixed to `right_hand_palm_link` or `left_hand_palm_link`. Merging therefore
+kept the collision geometry in the correct place but exposed it through the
+runtime body name `world`. The initial atlas trace compensated with a
+`world -> *_hand_palm_link` semantic alias.
+
+That representation was unnecessary for the hand-only atlas. Newton's
+hand-only validator already uses `collapse_fixed_joints=False`, and the atlas
+needs clear body-level contact semantics more than it needs to eliminate one
+fixed body. A controlled Isaac comparison established:
+
+```text
+same current right-Dex3 URDF and descriptor
+same first 10 raw GraspGenX cube transforms
+same open/close state, object and physics validator
+
+merged asset:      10 pass, 0 fail
+non-merged asset:  10 pass, 0 fail
+```
+
+The non-merged run also completed the optional six-phase trace. Its PhysX body
+names resolved directly to all eight requested physical links, including
+`right_hand_palm_link`; no alias was required. This is evidence that preserving
+the fixed palm does not break the upstream batched validator and improves the
+atlas contact contract.
+
+Both canonical Isaac hand assets are now imported with
+`merge_fixed_joints: false`. `tools/import_dex3_isaac_asset.py` defaults to that
+hand-only policy, while retaining an explicit `--merge-fixed-joints` option.
+`tools/build_dex3_isaac_grasp_input.py` traces the real palm link and emits an
+empty alias map. The raw `object_T_G` candidates are still copied byte-for-byte
+at the numeric YAML level; only the hashed USD physics asset and contact-link
+contract changed. The four atlas unit tests still pass.
+
+Before this correction, the first right-hand 256-candidate smoke run completed
+with 203 passes and 53 failures. That result used the merged-palm USD and is now
+superseded. The preserved-palm rerun completed with 202 passes and 54 failures.
+Exactly one borderline proposal changed verdict:
+
+```text
+cube_head__seed_0000000019__sample_223
+merged fixed joint:       pass
+preserved fixed joint:    fail
+all other 255 verdicts:   unchanged
+```
+
+The two representations are therefore geometrically equivalent but not
+numerically identical in the PhysX constraint solver: preserving the palm adds
+an explicit fixed-body constraint. The project accepts the preserved-palm
+result as canonical because body-level palm semantics are required by the
+atlas, the pass-rate change is one borderline candidate out of 256, and the
+topology now matches the Newton hand-only validator. The old merged trace and
+result were retained, not deleted, under
+`artifacts/diagnostics/merged_palm_right_256/`.
+
+## 2026-07-21 — right-hand smoke atlas and sequential Isaac review MP4
+
+Per the current project decision, left-hand qualification is paused. The atlas
+continued only with the preserved-palm right Dex3 result; no left-hand physics
+run or review media was started.
+
+The first right-hand smoke atlas uses the existing 256 canonical GraspGenX
+cube proposals from seed 19. Every proposal entered the exact current-right-
+Dex3 Isaac/PhysX close-and-five-tug validator without pose modification:
+
+```text
+raw proposals                     256
+physics PASS                      202
+physics FAIL                       54
+right-hand coarse families         20
+primary representatives replayed   20
+representative replay PASS          20
+representative replay FAIL           0
+```
+
+The family key is deliberately limited to body-level signals that the asset
+exposes reliably:
+
+```text
+participating digit chains + palm-contact bit + object-frame approach sector
+```
+
+Detailed PhysX contact points are still mapped to broad cube faces and shown
+as diagnostics, but neither those point locations nor derived face labels
+split families. This avoids allowing unreliable fine contact geometry to
+control the atlas while preserving it for frame-error diagnosis and human
+inspection. The 202 passing trials form 20 families: six approach sectors for
+each of the three common digit patterns (thumb+index, thumb+middle, and all
+three digits), plus two singleton palm-contact families.
+
+`tools/render_grasp_atlas.py` selects the real physics-passing primary member
+of every family, copies its original Isaac input transform verbatim, checks
+its provenance hash, and replays all 20 representatives in one upstream
+batched simulation. The sequential presentation is generated from the Isaac
+camera frames from that same run; it is not a pose-only or hand-authored
+renderer. Each segment shows family/candidate identity, family size, coarse
+signature, diagnostic face annotation, phase, and the final physics verdict.
+
+The first capture attempt exposed a real wrapper defect: GraspDataGen parsed
+Isaac Lab's `--enable_cameras` argument but its `LabStarter` reconstructed
+`AppLauncher` without passing that value. The wrapper now propagates
+`enable_cameras` explicitly. A one-representative camera smoke test then
+produced a visible 960x720 video and reproduced PASS before the full capture
+was admitted.
+
+Final review artifact:
+
+```text
+docs/assets/dex3_cube_grasp_families_right.mp4
+960x720, 24 fps, 2,180 frames, 90.833333 seconds
+20/20 representative replays reproduced PASS
+```
+
+The machine-readable selection, replay result, and media probe are retained
+under `artifacts/grasp_atlas/cube_v1/right/review/`, including
+`review_manifest.json`. Sampled early, middle, last, and per-family frames were
+checked for blank output, missing geometry, and unreadable overlays. The
+engineering capture gate passed; the user visual-review gate remains pending.
+
+## 2026-07-21 — full right-hand cube, T, and U grasp atlases
+
+After the 256-candidate cube review looked correct, production was expanded in
+the agreed direction: the current official right Dex3 only. Left-hand
+qualification remains deliberately paused. No table, G1 arm, cuRobo, OBB
+proposal, hand-authored grasp, geometric admission heuristic, or terminal
+closed-hand render was introduced.
+
+Each object used the same fixed generation and qualification contract:
+
+```text
+16 seeds × 256 diffusion proposals                   4,096/object
+three objects                                        12,288 total proposals
+GraspGenX threshold                                  -1.0 (retain all)
+pre-physics pose changes                             none
+Isaac/PhysX rate                                     250 Hz
+initial closed hold                                  1.0 s
+disturbance test                                     five 1 g tugs
+authoritative PASS signal                            final object-filtered
+                                                     contact in >=2 digits
+```
+
+The exact generated meshes were used: 45 mm cube, 135 × 45 × 180 mm T, and
+135 × 45 × 135 mm U. The cube used the measured 0.030 kg filament mass. Until
+the larger finished prints are weighed, T and U use explicitly provisional
+mesh-volume-scaled masses of 0.1810585309129197 kg and
+0.2112813226371547 kg. Those values are recorded in their configs and must not
+be mistaken for measurements.
+
+All 48 raw shards, 48 right-hand Isaac inputs, 48 ordinary result YAMLs, and
+48 six-phase contact traces completed. The production provenance audit checked
+candidate IDs, content hashes, object/hand/shard identity, exact 256-trial
+cardinality, unchanged `object_T_G`, and ordinary-result/trace verdict
+agreement at every boundary. Its summary is
+`artifacts/grasp_atlas/production_right_audit.json`.
+
+Production results:
+
+| Object | Raw | Physics PASS | Physics FAIL | PASS rate | Coarse families |
+|---|---:|---:|---:|---:|---:|
+| cube | 4,096 | 3,223 | 873 | 78.69% | 36 |
+| T | 4,096 | 1,616 | 2,480 | 39.45% | 35 |
+| U | 4,096 | 764 | 3,332 | 18.65% | 32 |
+
+One family-construction assumption was corrected before these atlases were
+accepted. The family signature initially used `closed_before_tug`, even though
+the existing validator awards PASS at `after_tug_5_final`. Across passing
+trials, the participating-body pattern changed between those states for 105
+cube, 280 T, and 97 U grasps. One cube PASS had fewer than two participating
+digits before the tugs but acquired its physics-qualified two-digit contact by
+the final state. Families therefore use the final qualified state consistently;
+closure and intermediate phases remain persistence diagnostics. A regression
+test fixes this contract.
+
+Detailed solver points remain diagnostic only. All 196,608 requested
+body/phase trace slots were returned for each object. Broad-surface mapping was
+valid for 263,483/271,968 cube points (96.88%), 223,766/454,973 T points
+(49.18%), and 122,356/404,397 U points (30.26%). The lower T/U mapping rates are
+why fine point/face labels do not decide PASS or split families. Coarse
+object-filtered body contacts remain the authoritative family signal.
+
+Every family's real primary representative was rerun through the same
+camera-enabled Isaac validator to make the sequential videos. The rerun result
+is recorded as a presentation diagnostic:
+
+| Object | Families shown | Camera rerun PASS | Camera rerun FAIL |
+|---|---:|---:|---:|
+| cube | 36 | 36 | 0 |
+| T | 35 | 32 | 3 |
+| U | 32 | 24 | 8 |
+
+The three red T primaries are singleton families and have no alternative
+member. Of the eight red U primaries, seven families have stored backup
+representatives and one is a singleton. No red result was hidden, relabelled,
+or replaced in the video. It does not overturn the original production
+physics PASS or remove that candidate from the atlas. Downstream scene
+planning may consider any production physics-passing member; the candidate it
+selects is validated in the actual arm/table Newton execution.
+
+Review media:
+
+- `docs/assets/dex3_cube_grasp_families_right.mp4` — 960×720, 24 fps,
+  3,924 frames, 163.500 s;
+- `docs/assets/dex3_t_body_grasp_families_right.mp4` — 960×720, 24 fps,
+  3,815 frames, 158.958 s; and
+- `docs/assets/dex3_u_legs_grasp_families_right.mp4` — 960×720, 24 fps,
+  3,488 frames, 145.333 s.
+
+All three videos decode without error. Sampled early, middle, last, and one
+post-tug frame per family show the current right Dex3, the correct object mesh,
+readable overlays, and explicit green/red verdicts. Machine-readable family,
+representative, replay, and media manifests live under
+`artifacts/grasp_atlas/<atlas_id>/right/`.
+
+One failed runner invocation formatted shard indices as `00` rather than the
+required `000`. The output guard rejected it before reading or overwriting any
+valid shard. Its log is preserved at
+`artifacts/diagnostics/atlas_runner_index_format_guard/`; the corrected runner
+then completed all 48 production shards.
+
+Verification at this checkpoint: five atlas unit tests pass, the modified
+Python programs compile, family membership/representative invariants pass for
+all three objects, and `git diff --check` is clean. The remaining gate is the
+user's inspection of the three sequential MP4s. Arm/table/assembly filtering
+does not resume until that visual evidence is accepted.
+
+## 2026-07-21 — right-arm pick-and-lift completed for cube, T, and U
+
+The next vertical slice now works for all three printed parts. This is not a
+manually authored grasp demo: every selected pose is an unchanged
+`object_T_G` from the corresponding right-Dex3 atlas. The working execution
+contract is:
+
+```text
+physics-passing right-Dex3 atlas poses
+        ↓ unchanged object_T_G candidates
+cuRobo: choose a reachable candidate and plan
+        start → pregrasp → grasp → world-Z lift
+        ↓ exact arm joint trajectory
+Newton: prescribe the planned rigid arm/palm motion
+        + dynamically simulate all seven Dex3 joints
+        + dynamically simulate object/table contact, gravity and friction
+        ↓
+measured object retention through the lift and final hold
+```
+
+The target object is present in cuRobo's collision world for the transfer from
+the starting pose to the pregrasp, preventing the arm or hand from knocking it
+away. The existing named-obstacle contact permission hides only that target
+during the intended final approach and lift. The table remains active. Only
+the three terminal finger links receive the narrowly scoped grasp-time table
+contact permission; the palm, proximal fingers, wrist and arm remain collision
+checked. The old hand/table AABB calculation is retained as a diagnostic count
+only and admits or rejects nothing.
+
+### Why the arm is prescribed inside Newton
+
+The first connected-arm attempts drove the generic Newton arm with a generic
+PD controller. The resulting 10–15 degree arm tracking lag moved otherwise
+valid T/U hand approaches into the objects before finger closure. That was not
+evidence against the atlas pose or cuRobo path; it was an uncalibrated actuator
+model changing the commanded path. The available GR00T/VIRAL gains also are
+not a safe drop-in replacement because they assume their own armature, torque
+limits, control loop and robot model.
+
+For this grasp-validation stage, cuRobo therefore owns arm path feasibility
+and Newton follows its arm trajectory exactly. In the Newton model, the rigid
+chain through the palm is kinematic/prescribed. The seven finger bodies remain
+dynamic and use the same current-Dex3 controller profile as the hand-only
+qualification; the part remains a dynamic free body. This isolates the
+question being tested now: can a collision-feasible G1 arm path deliver the
+real Dex3 to an exact atlas grasp, close through contact, and retain the part?
+It does **not** claim that G1 hardware arm dynamics or tracking have been
+validated. Those belong to the later hardware-controller/bridge stage.
+
+### Final runs
+
+All three runs use a 15 cm approach along the candidate's local approach axis
+and a 20 cm commanded lift along world +Z. These values are explicit planning
+parameters, not a hidden palm-frame correction. The real selected candidates,
+reports and measured outcomes are:
+
+| Part | Exact atlas candidate | Pool index | Motion | Newton retention measurements |
+|---|---|---:|---|---|
+| 45 mm cube | `cube_head__seed_0000000119__sample_082` | 791 | PASS | 0.2060 m rise; 1.030 follow fraction; 0.0036 m max palm-relative drift; 0.00042 m final drop |
+| T body | `t_body__seed_0000000149__sample_143` | 19 | PASS | 0.1770 m rise; 0.885 follow fraction; 0.0393 m max palm-relative drift; 0.00682 m final drop |
+| U legs | `u_legs__seed_0000000159__sample_107` | 298 | PASS | 0.1606 m rise; 0.803 follow fraction; 0.0664 m max palm-relative drift; 0.00123 m final drop |
+
+The machine-readable reports are:
+
+- `artifacts/right_arm_pick/cube_v1/prescribed_arm_regression/planning_report.json`;
+- `artifacts/right_arm_pick/t_body_v1/prescribed_arm_trial_01/planning_report.json`;
+- `artifacts/right_arm_pick/u_legs_v1/prescribed_arm_trial_09/planning_report.json`.
+
+The corresponding Newton camera videos are:
+
+- `docs/assets/g1_right_cube_pick_and_lift.mp4` — 960×720, 60 fps,
+  692 frames, 11.533 s;
+- `docs/assets/g1_right_t_body_pick_and_lift.mp4` — 960×720, 60 fps,
+  712 frames, 11.867 s; and
+- `docs/assets/g1_right_u_legs_pick_and_lift.mp4` — 960×720, 60 fps,
+  712 frames, 11.867 s.
+
+Contact sheets sampled across each video were inspected. In all three, the
+arm approaches from above the tabletop, the fingers close around the intended
+part, the part rises with the hand, and it remains held during the final
+pause. This supersedes the earlier disconnected-hand cube video, which is
+retained under its explicitly failed filename for provenance.
+
+### U-part diagnosis and selection
+
+The U was the hardest part and was not accepted on the first object-motion
+metric that happened to pass. Several attempted exact atlas poses were
+retained as diagnostics. Some produced large, visibly invalid finger-joint
+excursions even though the coarse object-rise metric alone could pass; those
+runs were rejected rather than relabelled as successes. Other poses planned
+but lost or insufficiently lifted the U in the complete Newton sequence.
+
+The family `right_b9e0f10ac744` was then screened systematically: all 77 of
+its unchanged atlas members entered the hand/table Newton approach test. The
+screen is recorded at
+`artifacts/right_hand_approach_screen/u_legs_v1_family_b9e0_full/physics_results.json`.
+Candidate pool index 298 from that family was subsequently planned by cuRobo
+and passed the full arm/table close-and-lift run. Its final video shows a
+coherent grasp. Newton/MuJoCo represents joint limits as soft constraints, so
+the exported joint histories were audited separately rather than assuming the
+object-retention verdict proved strict limit compliance. The cube stays inside
+its URDF limits apart from 3 microradians of numerical noise. The accepted T
+run exceeds four limits briefly: thumb-1 by 0.070 rad, thumb-2 by 0.085 rad,
+and the middle/index distal lower bounds by 0.023 rad each. The accepted U run
+exceeds thumb-1 by 0.079 rad and thumb-2 by 0.228 rad. These excursions are
+recorded rather than hidden. Runs with much larger, visibly invalid finger
+excursions were rejected. Consequently T/U have passed the current contact
+retention contract and visual gate, but this checkpoint does **not** certify
+strict hardware joint-limit feasibility. A later hardware/controller test—or
+a separately justified hard-limit simulation—must close that remaining gap.
+
+### Current boundary
+
+Completed here:
+
+- current right Dex3, current descriptor and exact AprilCube meshes;
+- full right-hand atlases for cube, T and U;
+- cuRobo reachability/collision planning for one real atlas pose per part; and
+- Newton contact-aware close, 20 cm lift and hold for all three parts.
+
+Still deliberately outside this checkpoint: left-hand qualification,
+bimanual coordination, magnetic attachment, assembly/disassembly sequencing,
+perception, ROS 2 hardware bridging and physical G1 execution. The immediate
+result is three reusable right-arm pick-and-lift primitives, not a completed
+assembly demo.

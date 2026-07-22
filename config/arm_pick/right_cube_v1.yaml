@@ -1,0 +1,27 @@
+name: right_cube_v1
+
+assets:
+  - id: table
+    type: procedural_table
+    params:
+      {width: 0.8, depth: 0.8, height: 0.7, thickness: 0.04, leg_thickness: 0.05}
+    pose: {translation: [0.55, 0.0, 0.33], quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]}
+    support_label: table_top
+    collision: cuboid_from_extents
+
+# The object center is 0.35 m forward and 0.15 m to the robot's right. The
+# table is adjustable in the real setup; this first fixed value puts the
+# zero-pose palm 145 mm above the tabletop without inventing a chair cutout.
+object_slot:
+  parent: table
+  surface: table_top
+  translation_offset: [-0.20, -0.15, 0.0]
+  upright: true
+  mesh_scale: 1.0
+
+extra_collision: []
+
+visual:
+  show_ground_grid: true
+  background_color: [0.95, 0.95, 0.95]
+  camera: {eye: [1.10, -1.10, 1.18], target: [0.30, -0.10, 0.82]}

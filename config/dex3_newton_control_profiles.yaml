@@ -1,0 +1,106 @@
+schema_version: 1
+status: untested_in_newton
+
+# These names match the current official Unitree rev-1.0 Dex3 URDF used by
+# config/dex3_rev1_descriptor.json. Side prefixes are added by the loader.
+joint_suffixes:
+  - hand_thumb_0_joint
+  - hand_thumb_1_joint
+  - hand_thumb_2_joint
+  - hand_middle_0_joint
+  - hand_middle_1_joint
+  - hand_index_0_joint
+  - hand_index_1_joint
+
+profiles:
+  graspgenx_generic_reference:
+    status: comparison_only
+    provenance:
+      repository: https://github.com/NVlabs/GraspGenX
+      commit: b9429097728cb1c430dd78b92edf17ba318aad03
+      path: end2end/dynamic_playback.py
+      note: Generic dynamic-playback defaults; no shipped G1/Dex3 profile exists.
+    source_simulation:
+      physics_dt_seconds: 0.001
+      task_rate_hz: 60
+      physics_substeps_per_task_frame: 17
+      collide_every_physics_steps: 4
+    gains:
+      hand_thumb_0_joint: {kp: 2000.0, kd: 200.0}
+      hand_thumb_1_joint: {kp: 2000.0, kd: 200.0}
+      hand_thumb_2_joint: {kp: 2000.0, kd: 200.0}
+      hand_middle_0_joint: {kp: 2000.0, kd: 200.0}
+      hand_middle_1_joint: {kp: 2000.0, kd: 200.0}
+      hand_index_0_joint: {kp: 2000.0, kd: 200.0}
+      hand_index_1_joint: {kp: 2000.0, kd: 200.0}
+    # These are generic fallback values in upstream dynamic_playback, not
+    # hardware evidence for Dex3.
+    effort_limit_nm:
+      default: 200.0
+    armature_kg_m2:
+      default: 0.0
+
+  viral_visualsim2real:
+    status: hardware_demonstrated_source_untested_in_newton
+    provenance:
+      repository: https://github.com/NVlabs/GR00T-VisualSim2Real
+      commit: 92bf0863d4a9b6ee29849736152b7769bd45c49c
+      robot_config: gr00t/rl/config/robot/g1/g1_43dof.yaml
+      simulator_config: gr00t/rl/config/simulator/isaacsim.yaml
+      isaacsim_adapter: gr00t/rl/simulator/isaacsim/isaacsim.py
+      note: Values are an informed starting profile, not Newton validation.
+    source_simulation:
+      physics_rate_hz: 200
+      physics_dt_seconds: 0.005
+      control_decimation: 4
+      command_rate_hz: 50
+      substeps: 1
+    gains:
+      hand_thumb_0_joint: {kp: 2.0, kd: 0.1}
+      hand_thumb_1_joint: {kp: 0.5, kd: 0.1}
+      hand_thumb_2_joint: {kp: 0.5, kd: 0.1}
+      hand_middle_0_joint: {kp: 0.5, kd: 0.1}
+      hand_middle_1_joint: {kp: 0.5, kd: 0.1}
+      hand_index_0_joint: {kp: 0.5, kd: 0.1}
+      hand_index_1_joint: {kp: 0.5, kd: 0.1}
+    effort_limit_nm:
+      hand_thumb_0_joint: 2.45
+      hand_thumb_1_joint: 1.4
+      hand_thumb_2_joint: 1.4
+      hand_middle_0_joint: 1.4
+      hand_middle_1_joint: 1.4
+      hand_index_0_joint: 1.4
+      hand_index_1_joint: 1.4
+    # GR00T's Isaac Sim adapter multiplies the YAML armature values by 3.
+    # Left/right source values differ for several joints, so they remain
+    # side-specific instead of being silently averaged.
+    armature_kg_m2:
+      right:
+        hand_thumb_0_joint: 0.01275
+        hand_thumb_1_joint: 0.03
+        hand_thumb_2_joint: 0.03
+        hand_middle_0_joint: 0.010829175
+        hand_middle_1_joint: 0.03
+        hand_index_0_joint: 0.010829175
+        hand_index_1_joint: 0.03
+      left:
+        hand_thumb_0_joint: 0.010829175
+        hand_thumb_1_joint: 0.03
+        hand_thumb_2_joint: 0.03
+        hand_middle_0_joint: 0.010829175
+        hand_middle_1_joint: 0.03
+        hand_index_0_joint: 0.010829175
+        hand_index_1_joint: 0.01275
+
+experiment_contract:
+  fixed_across_profiles:
+    - exact current-Dex3 URDF and collision meshes
+    - object mesh, mass, and initial pose
+    - candidate object_T_G and canonical-to-palm transform
+    - gravity, table, and contact material
+    - Newton solver, physics step, close trajectory, hold, and lift motion
+    - pass/fail metrics
+  only_profile_changes:
+    - per-joint kp and kd
+    - per-joint effort limit
+    - per-joint armature

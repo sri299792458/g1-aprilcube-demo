@@ -1,0 +1,76 @@
+schema_version: 1
+task_id: t_u_cube_humanoid_v1
+
+# Roles are assigned to physical hands only after reachability is evaluated.
+roles: [holder, worker]
+physical_hands: [left, right]
+
+parts:
+  t_body:
+    mesh: generated/aprilcube_parts/t_body/grasp_mesh.obj
+    geometry_config: config/aprilcube_parts/t_body.yaml
+    grasp_pools:
+      right: artifacts/grasp_atlas/t_body_v1/right/arm_grasp_pool.yaml
+    grasp_constraints:
+      # The holder must keep both connector corridors exposed.
+      allowed_cuboids: [central_stem]
+      keep_clear_connections: [u_to_t, head_to_t]
+
+  u_legs:
+    mesh: generated/aprilcube_parts/u_legs/grasp_mesh.obj
+    geometry_config: config/aprilcube_parts/u_legs.yaml
+    grasp_pools:
+      right: artifacts/grasp_atlas/u_legs_v1/right/arm_grasp_pool.yaml
+    grasp_constraints:
+      allowed_cuboids: [left_leg, right_leg, hip_bridge]
+      keep_clear_connections: [u_to_t]
+
+  cube_head:
+    mesh: generated/aprilcube_parts/cube_head/grasp_mesh.obj
+    geometry_config: config/aprilcube_parts/cube_head.yaml
+    grasp_pools:
+      right: artifacts/grasp_atlas/cube_v1/right/arm_grasp_pool.yaml
+    grasp_constraints:
+      allowed_cuboids: [head]
+      keep_clear_connections: [head_to_t]
+
+assembly:
+  # The holder never regrips. Every composite collision model is expressed in
+  # the T frame and grows T -> T+U -> T+U+head.
+  root_part: t_body
+  final_object_id: aprilcube_humanoid
+
+connections:
+  u_to_t:
+    parent: t_body
+    child: u_legs
+    # Exact 45 mm-voxel geometry: T bottom z=-90 mm meets U top z=+67.5 mm.
+    parent_T_child:
+      translation: [0.0, 0.0, -0.1575]
+      quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
+    parent_contact_point_m: [0.0, 0.0, -0.09]
+    child_contact_point_m: [0.0, 0.0, 0.0675]
+    parent_outward_normal: [0.0, 0.0, -1.0]
+    child_outward_normal: [0.0, 0.0, 1.0]
+
+  head_to_t:
+    parent: t_body
+    child: cube_head
+    # T top z=+90 mm meets cube bottom z=-22.5 mm.
+    parent_T_child:
+      translation: [0.0, 0.0, 0.1125]
+      quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
+    parent_contact_point_m: [0.0, 0.0, 0.09]
+    child_contact_point_m: [0.0, 0.0, -0.0225]
+    parent_outward_normal: [0.0, 0.0, 1.0]
+    child_outward_normal: [0.0, 0.0, -1.0]
+
+# High-level task semantics. Each step is expanded into explicit planning,
+# hand, attachment, and scene-state commands by the project-owned compiler.
+sequence:
+  - {id: pick_t, action: pick, role: holder, part: t_body}
+  - {id: pick_u, action: pick, role: worker, part: u_legs}
+  - {id: mate_u_to_t, action: mate, connection: u_to_t}
+  - {id: pick_head, action: pick, role: worker, part: cube_head}
+  - {id: mate_head_to_t, action: mate, connection: head_to_t}
+  - {id: place_complete, action: place, role: holder}

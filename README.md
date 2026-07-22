@@ -2,31 +2,102 @@
 
 Clean implementation of a seated Unitree G1 + Dex3 tabletop assembly demo.
 
-The repository is intentionally at **checkpoint 0**. It contains only a pinned
-upstream GraspGenX dependency, one reproducible input/output probe, and visual
-evidence of the frame contract. There is no MoveIt task, no hand-authored grasp,
-and no T/U/cube implementation yet.
+The repository has passed the **current Dex3 / 45 mm cube intrinsic
+grasp gate**. It contains pinned GraspGenX and AprilCube dependencies,
+reproducible descriptors for the official current Unitree Dex3, the real
+T/U/cube print geometry, and Isaac/PhysX-qualified neural grasp candidates.
+There is no hand-authored grasp.
 
 ## Fixed demo scope
 
 - One hand picks and holds an AprilCube T by its central stem.
 - The other hand attaches the U legs and cube head.
 - The assembled figure is placed upright on the table.
-- Grasp candidates come from GraspGenX; OMPL is the motion-planning backend.
+- Grasp candidates come from GraspGenX; cuRoboV2 is the motion-planning backend.
 
-## Current visual checkpoint
+The exact attachment-state contract is recorded in
+[the execution-stack specification](docs/execution_stack.md).
+
+## Current checkpoint
+
+![Selected 45 mm task scale](docs/assets/aprilcube_45mm_scale.png)
+
+The task uses 45 mm voxels and produces a 360 mm completed figure. This image
+is a size reference only; it does not claim a grasp or contact result.
+
+![Raw GraspGenX proposals on the task parts](docs/assets/aprilcube_raw_grasp_audit.png)
+
+The image shows only the open hand. A fixed terminal-close overlay was removed
+because it passes through objects that should stop the real fingers and cannot
+validate a grasp. [The raw AprilCube grasp checkpoint](docs/aprilcube_raw_grasp_checkpoint.md)
+is retained as historical context.
+
+![Current Unitree Dex3 descriptor states](docs/assets/dex3_rev1_descriptor_states.png)
+
+The boxes are the released checkpoint's physics-qualified morphology proxy,
+not a literal enclosure claim for the current L-shaped open posture. Read [the
+current Dex3 descriptor root-cause audit](docs/dex3_rev1_descriptor.md).
+
+The canonical named pipeline sent all 120 cube proposals unchanged into the
+exact current hands. 118 survived closure and five directional tugs on the
+right; 116 survived when the same proposals were replayed on the mirrored left.
+[Watch the right-hand sequential close-up review of eight passes and both
+right-hand failures](docs/assets/dex3_descriptor_corrected_review10_sequential.mp4).
+
+Using masses scaled from the 30 g cube print, the same intrinsic right-hand
+screen retained 43/120 T proposals at 181 g and 9/120 U proposals at 211 g.
+[T passing-grasp review](docs/assets/dex3_t_body_passing_grasps_grid.mp4) ·
+[U passing-grasp review](docs/assets/dex3_u_legs_passing_grasps_grid.mp4)
 
 ![Upstream descriptor and candidate](docs/assets/graspgenx_unitree_upstream_probe.png)
 
 ![One candidate from several views](docs/assets/graspgenx_unitree_candidate_multiview.png)
 
-Read [the verified GraspGenX contract](docs/graspgenx_contract.md) before adding
-any robot or MoveIt code.
+Read [the verified GraspGenX contract](docs/graspgenx_contract.md) before using
+the candidates in robot planning code.
+
+## Python environment
+
+The Python stack belongs to this repository. From the repository root, install
+`uv` once if necessary, then reproduce the exact locked environment:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
+~/.local/bin/uv sync --frozen
+source .venv/bin/activate
+```
+
+Python 3.11 is managed automatically from `.python-version`. The lock contains
+GraspGenX, PyTorch 2.6.0+cu124, Newton 1.0.0, Warp 1.15.0, MuJoCo 3.5.0, and
+MuJoCo-Warp 3.5.0.2. In this project, **Newton owns the model and collision
+pipeline while MuJoCo-Warp is the GPU physics solver behind Newton's
+`SolverMuJoCo`**.
+
+Verify imports, CUDA, and an actual rigid-contact solve:
+
+```bash
+python tools/check_sim_stack.py
+```
+
+## Build the current Dex3 descriptors
+
+From the activated repository environment:
+
+```bash
+PYOPENGL_PLATFORM=egl python tools/build_dex3_rev1_descriptors.py \
+  --source-root /path/to/xr_teleoperate
+```
+
+Omit `--source-root` to download and hash-check only the pinned official hand
+assets. Runtime files are generated where GraspGenX resolves them, under
+`third_party/GraspGenX/assets/x_grippers/`; the numerical audit is
+[here](artifacts/dex3_rev1_descriptor/audit.json).
 
 ## Pinned upstream dependency
 
 ```text
 GraspGenX b9429097728cb1c430dd78b92edf17ba318aad03
+AprilCube fc18d50c8bbaadc9646dfd0aa5fcd2404a9868c5
 ```
 
 Clone with submodules:
@@ -42,8 +113,8 @@ trusting a render.
 
 ## Reproduce checkpoint 0
 
-Create the GraspGenX environment from its pinned `pyproject.toml`, then set both
-asset variables **before importing GraspGenX**:
+Run the locked environment setup above, then set both asset variables **before
+importing GraspGenX**:
 
 ```bash
 export GRASPGENX_CHECKPOINT_DIR=/absolute/path/to/graspgenx_checkpoints
@@ -75,6 +146,16 @@ exact revisions and input hash used for the committed images.
 
 ## Phase gate
 
-The next phase starts only after the two images above and the frame equation in
-the contract are accepted. The next code will import the real AprilCube T, U,
-and cube meshes and generate raw candidates—still without MoveIt.
+The full current-right-Dex3 contact atlases defined in
+[the implementation specification](docs/dex3_aprilcube_grasp_atlas_spec.md)
+are complete for the cube, T, and U: 4,096 unchanged GraspGenX diffusion
+proposals per object were physics-tested and grouped by coarse body-level
+contact. Sequential videos show the family representatives; their camera-rerun
+verdicts are diagnostics, not a second grasp-qualification gate.
+
+[Cube review](docs/assets/dex3_cube_grasp_families_right.mp4) ·
+[T review](docs/assets/dex3_t_body_grasp_families_right.mp4) ·
+[U review](docs/assets/dex3_u_legs_grasp_families_right.mp4)
+
+Left-hand qualification is intentionally deferred. Table placement, arm IK,
+scene-aware approach planning, and execution remain separate subsequent gates.

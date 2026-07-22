@@ -1,158 +1,154 @@
 # Verified GraspGenX integration contract
 
-This document is deliberately narrow. It records only what the pinned upstream
-code and a reproduced run establish. It does not inherit assumptions from an
-earlier implementation.
+This document records only contracts supported by the pinned code and our
+reproduced tests.
 
-## 1. What goes into GraspGenX
+## 1. Input to GraspGenX
 
-For the released checkpoint used here:
+For the released checkpoint:
 
 ```text
 segmented object point cloud in frame F
           +
-12-number gripper sweep descriptor
+12-number gripper conditioning vector
 ```
 
-The 12 gripper numbers are:
+The vector order is:
 
 ```text
 open box extents xyz
-open box offset xyz
+open box center xyz
 half-open box extents xyz
-half-open box offset xyz
+half-open box center xyz
 ```
 
-The stock `unitree_g1` values are:
+Both checkpoint networks select `sweep_volume_v2`: a three-layer MLP whose
+input dimension is 12. The URDF, meshes, collision shapes, joint values, and
+closing trajectory are not consumed by inference. They are downstream assets.
 
-```text
-open: extents [0.10, 0.06, 0.04], offset [0.000, 0.000, 0.070]
-half: extents [0.04, 0.06, 0.04], offset [0.007, 0.000, 0.060]
-```
+For current Dex3 we use the released Unitree 12-vector as a
+physics-qualified checkpoint-compatibility proxy. The exact reasoning and
+ablation evidence are in `docs/dex3_rev1_descriptor.md`.
 
-The released generator and discriminator select the `sweep_volume_v2`
-conditioning path. The seven Dex3 joint values and URDF are therefore not read
-by inference. They remain necessary for rendering, closure qualification, and
-eventual execution.
-
-## 2. What comes out
+## 2. Output from GraspGenX
 
 ```text
 candidate transforms: K x 4 x 4
 confidence scores:     K
 ```
 
-For point-cloud frame `F`, candidate `i` is:
-
-```text
-F_T_G[i]
-```
-
-`G` is the GraspGenX canonical gripper root. The transform maps a point written
-in canonical gripper coordinates into `F`.
+For point-cloud frame `F`, candidate `i` is `F_T_G[i]`, where `G` is the
+descriptor's canonical GraspGenX root. It maps points written in `G` into `F`.
 
 The output does **not** contain:
 
-- a Dex3 palm or wrist pose;
-- a seven-joint finger configuration;
+- a palm or wrist pose;
+- seven candidate-specific finger joint values;
 - a pregrasp or retract pose;
-- an arm IK solution or trajectory;
-- table/scene collision clearance;
-- an assertion that the robot can reach the candidate.
+- arm IK or a trajectory;
+- scene collision clearance; or
+- proof of contact stability.
 
-The confidence is model ranking evidence. It is not a complete execution
-validity certificate.
+Confidence ranks proposals. It is not a grasp-success certificate.
 
-## 3. Why the returned frame is not the palm
+## 3. Why G is not the palm
 
-The stock Unitree descriptor URDF has a root link named `world`. In this file,
-`world` means the canonical GraspGenX frame `G`; it is not our MoveIt world or
-robot base.
-
-The descriptor fixes `right_palm_link` below that root:
-
-```text
-G_T_right_palm_link ≈
-
-[[-1, 0, 0, 0.07],
- [ 0, 0, 1, 0.00],
- [ 0, 1, 0, 0.02],
- [ 0, 0, 0, 1.00]]
-```
-
-Upstream renders the hand by multiplying every URDF geometry transform as:
+Every descriptor URDF has a root link named `world`; here that link means `G`,
+not the MoveIt world or robot base. A fixed URDF joint defines `G_T_palm`.
+Upstream places every hand geometry as:
 
 ```text
 F_T_geometry = F_T_G @ G_T_geometry
 ```
 
-The fixed palm transform is already part of `G_T_geometry`. This both proves
-the output-frame meaning and gives the correct palm conversion.
-
-## 4. The only valid palm conversion
+Therefore the physical right palm pose is exactly:
 
 ```text
-F_T_right_palm_link
-    =
-F_T_G
-    @
-G_T_right_palm_link
+F_T_right_palm = F_T_G @ G_T_right_palm
 ```
 
-No inverse and no hand-tuned offset is introduced.
-
-If MoveIt later controls a frame other than the exact same `right_palm_link`, a
-second fixed transform must be obtained from the authoritative robot model and
-verified by visual overlap:
+There is no hand-tuned offset and no inverse. The current right and left fixed
+rotations are:
 
 ```text
-F_T_moveit_tool
-    =
-F_T_G
-    @ G_T_right_palm_link
-    @ right_palm_link_T_moveit_tool
+G_T_right_palm rotation = [[0,  1,  0],
+                           [0,  0,  1],
+                           [1,  0,  0]]
+
+G_T_left_palm rotation  = [[0, -1,  0],
+                           [0,  0, -1],
+                           [1,  0,  0]]
 ```
 
-That last transform does not yet exist in this repository.
+The left transform incorporates physical mirroring so the two full open hands
+occupy the same canonical convention. If a later planner controls a different
+tool link, its additional fixed transform must come from the authoritative
+robot model.
 
-## 5. Open, close, and approach are separate things
+## 4. Proven frame behavior
 
-The stock descriptor also supplies dictionaries of seven right-hand joint
-values named `open` and `close`. They are fixed endpoints, not a grasp-specific
-finger solution returned by the network. The halfway image is only a 50%
-linear interpolation for inspection.
+GraspGenX centers the input object point cloud internally and restores its
+mean to every output pose. In our deterministic translation test, adding
+`[0.173, -0.081, 0.249]` m to the input changed the 60 output translations by
+the same amount within 1.28 micrometres; maximum rotation difference was
+0.0396 degrees and confidence difference was 0.000149.
 
-Likewise, a pregrasp is not part of GraspGenX output. Once a candidate has been
-geometrically qualified, the manipulation layer may define a named approach
-transform along canonical `-Z`, because upstream defines canonical `+Z` along
-the fingers toward the object. The approach distance must come from object and
-scene clearance—not an unexplained global constant.
+This establishes the input/output frame behavior. It does not establish
+contact or physical success.
 
-## 6. Required candidate qualification
+## 5. Open, close, and approach are independent
 
-Candidate generation is automatic. Candidate acceptance is a downstream,
-deterministic filter:
+The descriptor supplies fixed open and close dictionaries only for downstream
+hand use. The halfway pose is a 50% joint-space interpolation used to describe
+conditioning and inspect motion; it is not returned by the network.
 
-1. Render the actual open and closing hand at `F_T_G`.
-2. Reject palm or non-contact-link penetration.
-3. Check that closing provides useful opposing contact/enclosure on the object.
-4. Check the approach corridor against the object, table, and other parts.
-5. Convert to the exact MoveIt tool frame using verified fixed transforms.
-6. Reject candidates that fail arm IK, joint limits, or scene collision.
-7. Rank the remaining candidates using model confidence plus deterministic
-   execution margins.
+A pregrasp is also not part of GraspGenX. Later scene-aware planning may offset
+along canonical `-Z`, but its distance must be named and checked against the
+actual object, table, robot, and approach corridor.
 
-This does not replace GraspGenX with manual grasps. GraspGenX proposes the
-poses; the robot stack decides which proposals are executable.
+## 6. Candidate qualification contract
 
-## 7. Current open questions
+For the intrinsic hand/object checkpoint:
 
-- The upstream asset is right-hand-only. We still need an authoritative left
-  Dex3 model/descriptor and a visual overlap test.
-- We have not yet verified that the future MoveIt `right_palm_link` is identical
-  to the upstream descriptor link.
-- We have not generated candidates on the AprilCube T, U, or cube.
-- We have not selected grasp-dependent approach distances.
-- We have not introduced OMPL, MTC, robot IK, or PlanningScene objects.
+```text
+all GraspGenX proposals
+        ↓ copied unchanged
+Isaac/PhysX close-and-five-tug qualification
+        ↓
+physically retained proposal set
+```
 
-Those are subsequent checkpoints, not assumptions to hide in the first one.
+There is no render-based closure heuristic, hand-authored pose correction, or
+manual grasp selection before intrinsic physics. The qualifier uses the exact
+current hand model and close trajectory, disables only intra-hand
+self-collision to match upstream, and requires object contact in at least two
+of the three finger chains after every tug.
+
+For the later tabletop task, the retained set must additionally pass a
+different layer:
+
+1. transform to the selected right or left palm using the descriptor URDF;
+2. plan a scene-aware pregrasp, approach, pickup, and retract;
+3. reject table, robot, and non-target collisions;
+4. reject arm IK/joint-limit failures; and
+5. execute only the candidate selected by that planner.
+
+These scene checks do not belong inside the intrinsic hand-only validator, and
+intrinsic physics does not replace scene-aware arm planning.
+
+## 7. Current proven state and open work
+
+Proven for the exact current hands and 45 mm cube:
+
+- the normal named descriptor resolves the intended 12-vector;
+- all 120 GraspGenX transforms enter physics unchanged; and
+- 118/120 survive on the right hand and 116/120 survive on the left hand when
+  the identical canonical proposal set is replayed.
+
+Still open:
+
+- assembly-specific T/U selection by grasp region and connector clearance;
+- exact G1 planner tool-link equivalence;
+- tabletop approach and arm reachability;
+- hardware force/retention calibration; and
+- magnet-assisted attachment execution.

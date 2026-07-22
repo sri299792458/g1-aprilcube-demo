@@ -2,6 +2,12 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.cache/
+generated/
+artifacts/
+*.dmp.zip
+*.dmp.zip.toml
+crash_*.txt
 
 # GraspGenX manages model and gripper assets under ext/. They are large,
 # reproducible external data and must not become project source.
