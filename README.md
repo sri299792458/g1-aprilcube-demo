@@ -20,6 +20,24 @@ The exact attachment-state contract is recorded in
 
 ## Current checkpoint
 
+[Watch the complete collision-aware T/U/cube assembly plan](docs/assets/t_u_cube_full_assembly_curobo_v1.mp4).
+The 24.25 s video is reconstructed from the exact successful 14-joint cuRobo
+trajectories and saved attachment state—not from a separately animated demo.
+It uses the current Unitree Dex3 visual meshes and actual 45 mm AprilCube
+T/U/cube meshes.
+
+Reproduce the plan and video from the repository root:
+
+```bash
+PYTHONPATH=.:third_party/GraspGenX/ext/curobo \
+  .venv/bin/python tools/run_full_assembly.py
+.venv/bin/python tools/render_full_assembly.py
+```
+
+The generated report, trajectories, render state, timeline, and MP4 are under
+`artifacts/full_assembly/t_u_cube_v1/`. These generated artifacts are ignored
+by Git; the reviewed MP4 above is the committed visual checkpoint.
+
 ![Selected 45 mm task scale](docs/assets/aprilcube_45mm_scale.png)
 
 The task uses 45 mm voxels and produces a 360 mm completed figure. This image
@@ -167,5 +185,9 @@ original 256-environment qualification verdict.
 [T VIRAL-profile review](docs/assets/dex3_t_body_grasp_families_right_viral.mp4) ·
 [U VIRAL-profile review](docs/assets/dex3_u_legs_grasp_families_right_viral.mp4)
 
-Left-hand qualification is intentionally deferred. Table placement, arm IK,
-scene-aware approach planning, and execution remain separate subsequent gates.
+Left-hand qualification is complete for the T holder pool used by the fixed
+demo; the right hand uses the qualified U and cube pools. The complete
+collision-aware arm plan, dual attachment transfers, placement, and visual
+replay now pass. Physical magnetic connectors, ROS 2 trajectory/hand execution,
+AprilTag perception, camera calibration, and real seated-G1 validation remain
+separate hardware gates.

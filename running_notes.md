@@ -1684,13 +1684,58 @@ coordinate-wise medians into a pose that may never have existed. The exact
 joint values, dataset revision, and source indices are in
 `config/setup/unibot_arrangeplates_reference_v1.yaml`.
 
-A preliminary metric table plane was also estimated from ArrangePlates frame
-60 using the released stereo calibration and imagery. In the presumed dataset
-kinematic base, its point is approximately `(0.484, -0.070, 0.057) m` with a
-2.03-degree normal tilt. This number is deliberately marked
-`reference_only_pending_dex3_scene_review`: the release does not explicitly
-document the parent-frame convention connecting `state_d435` to the head
-stereo pair, so it is not yet a deployment table height.
+The camera-frame audit resolves the ambiguous part of that first estimate.
+Across all 1,735 frames of ArrangePlates episode 0,
+`inverse(state_torso) * state_d435` is the constant transform
+`xyz=(0.0576235, 0.01753, 0.42987) m`, `rpy=(0, 0.830776724, 0) rad` to
+numerical precision. Those values exactly match the official G1 URDF's fixed
+`torso_link -> d435_link` joint. The end-effector poses obey the same
+`gripper_base` parent convention, so `state_d435` is now identified as
+`gripper_base_T_d435_link` rather than an unnamed optical-frame pose.
+
+There is an important stream and mounting distinction—not a claim that the
+D435i hardware is monocular. The D435i is physically a stereo-depth camera,
+with two infrared imagers in addition to its RGB sensor and IMU. Unitree calls
+the built-in D435i option "monocular" in its teleoperation equipment table
+because that application consumes one head-view image. In the same table,
+Unitree identifies a separately mounted RGB stereo camera for stereo viewing
+and dataset capture. The UniBot dataset's two `head_stereo` RGB views are from
+that external unit. The dataset publishes the pair's intrinsics and
+left-to-right calibration, but no rigid transform from its optical frames to
+`d435_link`. We therefore must not equate `head_stereo_left` with the built-in
+D435 optical frame or claim an official Unitree mount extrinsic.
+
+For the nominal simulation seed, the strongest released reference is NVIDIA's
+fixed G1 RealSense real-to-sim alignment. It attaches the simulated camera to
+`d435_link` with translation `(0, 0.035, 0) m` and quaternion
+`wxyz=(0.99955, 0, 0.0299955, 0)`, equivalent to `Ry(+0.060000002 rad)`.
+NVIDIA's accompanying projection code defines its camera axes as X forward,
+Y left, Z up and maps them to OpenCV as `(x, y, z)=(-Y, -Z, X)`. Combining
+those contracts gives the following transform, which maps a left OpenCV
+optical-frame point into `d435_link`:
+
+```text
+d435_link_T_left_optical =
+[ 0.000000  -0.059964   0.998201   0.000 ]
+[-1.000000   0.000000   0.000000   0.035 ]
+[ 0.000000  -0.998201  -0.059964   0.000 ]
+[ 0.000000   0.000000   0.000000   1.000 ]
+```
+
+This alignment also passes an independent check against the UniBot stereo
+data. Rectified stereo plane fits at frames 0 and 60 produce table normals
+within 1.299 and 0.721 degrees of vertical after applying the transform. Their
+plane offsets in `gripper_base` are 0.04139694 m and 0.04164816 m, agreeing
+within 0.26 mm despite being two seconds apart. With no +0.06 rad correction,
+the frame-60 residual tilt is 3.277 degrees; with the opposite sign it is
+6.677 degrees. We will therefore use NVIDIA's transform as a nominal simulation
+seed—not as our physical camera calibration. The released NVIDIA repository
+contains the fixed offset and code that applies and randomizes it, but no
+routine or documented procedure that measures it. Extrinsic randomization
+makes their learned policy less sensitive to mounting error; it does not tell
+us our robot's transform. The real G1 therefore needs a one-time target-based
+robot-camera extrinsic calibration before camera observations can be placed
+accurately in the planning frame.
 
 The Dex1/Dex3 difference does not invalidate the lower-body seated seed or the
 coarse table-relative arm workspace. It does invalidate blindly copying hand
@@ -1701,3 +1746,267 @@ the current Dex3 collision model, confirming forearm/hand table clearance,
 and then setting the real height-adjustable table from the measured seated
 robot. AprilTags can correct object/table pose at runtime; they do not correct
 a poor nominal seated collision geometry.
+
+### Camera calibration actually required by the assembly demo
+
+The UniBot external stereo is only evidence for seated posture and coarse
+table workspace. It is not part of our runtime perception chain, so recovering
+its unpublished mount extrinsic is unnecessary. Our built-in D435i can run a
+single RGB stream for AprilTag detection; depth is optional for scene checking.
+The RealSense driver supplies factory intrinsics and the internal transforms
+among the D435i's color, infrared, and depth sensor frames.
+
+For hardware assembly, the required pose chain is:
+
+```text
+planning_T_object =
+    planning_T_d435_link(q)
+  * d435_link_T_color_optical       # calibrate once on our G1
+  * color_optical_T_tag             # measured every camera frame
+  * tag_T_object                    # exact from AprilCube CAD
+
+planning_T_grasp = planning_T_object * object_T_grasp
+planning_T_connector = planning_T_object * object_T_connector
+```
+
+Only `d435_link_T_color_optical` is a robot-specific camera-mount calibration.
+It should be measured once after the camera or head cover is installed or
+disturbed, stored as a versioned static transform, and verified with an
+independent target pose. NVIDIA's fixed value is only its initial guess. A
+ChArUco or AprilTag board rigidly mounted at a known robot-link transform and
+observed from multiple diverse arm poses gives the measurements needed for a
+standard robot-camera/hand-eye solve. The released NVIDIA repositories do not
+contain that calibration routine; they apply a fixed transform and randomize
+around it during policy training.
+
+At each demo setup, a tag board fixed to the height-adjustable table should
+register the table collision plane and task frame in the robot planning frame.
+AprilCube face tags then locate the individual parts. CAD provides every
+`tag_T_object`, grasp-atlas entries provide every `object_T_grasp`, and the
+connector design provides every `object_T_connector`. The camera timestamps
+must be paired with the corresponding robot joint state because the waist can
+move `d435_link` even while the robot remains seated.
+
+This means camera work is deliberately staged:
+
+1. Simulation motion planning uses exact object poses and needs no camera.
+2. Hardware bring-up verifies the RealSense driver's internal frame tree.
+3. Calibrate our one `d435_link_T_color_optical` static transform.
+4. Register the table at each setup and detect AprilCube poses at runtime.
+
+We do not need to calibrate the D435i's stereo pair ourselves, reproduce the
+UniBot external stereo, or use depth to estimate grasp poses for this tagged,
+known-object demo.
+
+## 2026-07-22 — UniBot-seeded cuRobo scene contract
+
+The first assembly planning scene is now a concrete, versioned configuration
+at `config/planning/unibot_seated_aprilcube_v1.yaml`. It uses the exact lower
+body, waist, and 14 arm joint values from UniBot ArrangePlates episode 0,
+frame 0. The UniBot `gripper_base` frame is numerically the official G1
+cuRobo/URDF `base_link` frame for this sample: applying official forward
+kinematics from `base_link` reproduces the recorded `state_torso` transform.
+No guessed pelvis or torso offset is inserted.
+
+UniBot used Dex1 grippers, so only its body and arm pose is transferred. The
+two grippers are replaced with the open configuration from our versioned
+current-Dex3 descriptor, and all collision checks use Unitree's official
+`g1_29dof_with_hand_rev_1_0.urdf` meshes.
+
+The UniBot-derived table top is `z=0.04152595 m` in `base_link`. At the exact
+observed arm pose, that surface intersects the physically larger open Dex3.
+Because our real table is height-adjustable, the planning seed preserves the
+observed seated posture and lowers the table by 35 mm, to
+`z=0.00652595 m`. This gives the exact full G1/Dex3 collision geometry a
+minimum table clearance of 10.16 mm. This is a measured compatibility
+adjustment, not a new arbitrary posture or a claim that UniBot used this
+height. The physical table value remains configurable and must be verified on
+our seated robot.
+
+The scene places the actual 45 mm AprilCube T, U, and cube meshes directly on
+the tabletop, with T and U lying horizontally. Their initial positions are
+explicit task seeds and are separated from each other and the robot. Runtime
+AprilTag estimates will later replace these nominal poses. There are no trays,
+cradles, magnets, or simulated grasp assumptions in this scene.
+
+The visual checkpoint is
+`docs/assets/unibot_seated_aprilcube_scene_v1.png`, generated by
+`tools/render_curobo_scene.py`. Automated geometry tests require all 43
+physical joint values, verify that every object rests on the table without
+overlap, and check the full robot against the table and all loose objects.
+This scene is the fixed input to the next checkpoint: right-arm cuRobo planning
+from a qualified right-Dex3 T grasp candidate. No trajectory has been planned
+or accepted yet.
+
+## 2026-07-22 — full T/U/cube cuRobo assembly is planned and rendered
+
+This section supersedes the final sentence above. The UniBot-derived full-body
+scene was useful evidence, but it is not the scene used by the completed
+planning checkpoint. At the user's direction, implementation restarted from a
+clean cuRobo v0.8.0 checkpoint with only the fixed torso, both seven-joint
+arms, and both current Dex3 hands. The nested cuRobo repository remains clean;
+all demo policy is project-owned.
+
+### Concrete scene
+
+The robot model is generated by `tools/build_g1_dual_arm_model.py` as
+`generated/robot/g1_fixed_torso_dual_dex3.{urdf,yml}`. It has 28 movable
+joints: 14 arm joints and 14 Dex3 finger joints. Lower-body joints are absent
+from this planning model, and the base is fixed at world `(0, 0, 0.75) m`.
+This isolates the tabletop arm problem; it is not yet a claim that the final
+chair/base transform is calibrated on the real seated G1.
+
+The versioned planning scene is
+`config/planning/t_u_cube_full_assembly_v1.yaml`:
+
+- table center `(0.55, 0, 0.68) m`, size `0.80 x 0.80 x 0.04 m`, top at
+  `z=0.70 m`;
+- T upright at `(0.40, 0.28, 0.79) m` so its central stem is accessible;
+- U upright at `(0.36, -0.22, 0.7675) m` on its two legs;
+- 45 mm cube centered at `(0.38, -0.32, 0.7425) m`; and
+- a `15 x 15 x 20 mm` locating peg below the cube.
+
+The peg is not a tray or cradle and does not constrain the cube laterally. A
+measured candidate-reachability sweep found no single qualified cube grasp
+that worked at both a bare-table pickup (`cube z=0.7225`) and the future head
+mate. Raising the cube 20 mm produced two shared candidates; this is the
+smallest tested height that makes the fixed task feasible. The cube bottom and
+peg top both lie at `z=0.72 m`. This prepared fixture can be redesigned with
+the physical magnet connector later.
+
+The ready arm state is an exact current-model IK result. Its two GraspGenX tool
+frames start at approximately `(0.30, +0.24, 1.02) m` and
+`(0.30, -0.24, 1.02) m`, collision-clear of the table and all loose parts.
+
+### Grasp selection contract
+
+No grasp is authored in the task code. The planner searches only unchanged
+GraspGenX candidates that passed the Isaac/PhysX VIRAL-profile qualifier. The
+successful run selected:
+
+| Part | Hand | Candidate | GraspGenX score |
+|---|---|---|---:|
+| T | left | `t_body__seed_0000000159__sample_088` | 0.867316 |
+| U | right | `u_legs__seed_0000000119__sample_043` | 0.963534 |
+| cube | right | `cube_head__seed_0000000119__sample_201` | 0.166805 |
+
+The T candidate approaches the upper central stem immediately below the
+shoulder crossbar. The candidate-region filter does not mistake the invisible
+GraspGenX origin for a contact point. It intersects the candidate's declared
+positive-local-Z approach ray with the exact union-of-cuboid part model and
+uses the first hit only as a coarse task-region label. Isaac/PhysX remains the
+grasp-retention authority.
+
+For every U or cube candidate, selection intersects four reachability sets:
+pickup pregrasp, pickup exact grasp, future mate precontact, and future exact
+mate. This prevents choosing an excellent pickup grasp that cannot perform its
+later assembly operation. The exact feasible joint target found during
+selection is reused by the planner instead of solving the same stochastic IK
+problem again.
+
+The target object stays collision-live during the free-space move to pregrasp.
+Only that target's world copy is absent for the final straight contact
+approach, where contact is intentional. At connector contact, the holder's
+attachment slot is hidden only for the exact endpoint because cuRobo v0.8 has
+named-link collision enable/disable but no pairwise Allowed Collision Matrix.
+The table, all other loose objects, robot self-collision, and the other arm
+remain collision-live.
+
+### Planning and attachment implementation
+
+`g1_aprilcube_demo/planning/assembly_runner.py` owns the fixed choreography and
+uses clean cuRobo public components. OMPL, MoveIt, Newton, and MuJoCo are not
+part of this planning run.
+
+Each arm gets a side-specific Cartesian IK solver with 256 seeds. The main
+planner owns collision-aware 14-joint transfers. A critical bug was found in
+the right-side solver: its solution joint order is right arm then left arm,
+whereas the main model is left then right. Positional slicing silently copied
+the wrong seven values. The adapter now maps every solution by joint name and
+reorders the current seed into each solver's declared order. Side IK also has
+CUDA graph capture disabled because selection alternates between 48-pose
+goalsets and singleton waypoints, shapes that the released standalone solver
+cannot recapture dynamically.
+
+The two arms move sequentially. A full 14-joint plan may otherwise drift the
+nominally stationary arm, so each accepted one-arm trajectory is projected
+onto the exact stationary seven-joint values and every projected sample is
+collision-checked before acceptance. This provides the desired one-arm-at-a-
+time choreography without giving up whole-robot collision checking.
+
+Loose part collision geometry is represented as its exact 45 mm voxel-cuboid
+union. This avoids mesh-SDF behavior that was inappropriate for these small
+generated parts. Carried parts use cuRobo's released MORPHIT sphere fitting in
+independent `left_attached_object` and `right_attached_object` slots. On each
+snap, the child is removed from the worker slot and the holder slot is replaced
+with the full T-relative composite: T, then T+U, then T+U+cube.
+
+The fixed execution is:
+
+1. left hand picks T at its qualified central-stem grasp and raises it;
+2. left stages T at `z=1.02 m`;
+3. right picks U, retracts, approaches the bottom connector from below, and
+   snaps it to T;
+4. right releases and retreats 75 mm; left now carries T+U;
+5. right parks while left lowers the composite to T `z=0.95 m`;
+6. right picks the elevated cube, retracts, approaches from above, and snaps;
+7. right releases and retreats; left now carries T+U+cube;
+8. left places the complete 360 mm figure with its lowest geometry at
+   `z=0.703 m`, 3 mm above the collision tabletop;
+9. left opens, all three parts return to world state, and left retreats
+   75 mm for the reveal.
+
+"Magnetic snap" here is an explicit scene-state transition at the exact
+declared connector transform. This checkpoint does not simulate magnetic
+attraction, connector compliance, or part settling. Those belong to physical
+connector testing, not motion planning.
+
+### Successful run and exact visual replay
+
+Run the planner with:
+
+```bash
+PYTHONPATH=.:third_party/GraspGenX/ext/curobo \
+  .venv/bin/python tools/run_full_assembly.py
+```
+
+It completes 56 successful planning events and records 174 state-bearing
+segments. The generated files are:
+
+- `artifacts/full_assembly/t_u_cube_v1/planning_report.json`;
+- `arm_trajectories.npz` with the exact 14-joint cuRobo results; and
+- `render_state.json` with each segment's loose/attached object rules and hand
+  closure fraction.
+
+`tools/render_full_assembly.py` does not invent a preview trajectory. It reads
+those saved arm trajectories, reconstructs the current URDF's 35 visual meshes
+with `yourdfpy`, interpolates the versioned current-Dex3 open/close profiles,
+computes every attached object as `world_T_G * grasp_T_object`, and passes the
+result to GraspGenX's existing EGL renderer. Long solver paths are sampled with
+both endpoints preserved; state transitions are never interpolated away.
+
+The reviewed result is 582 frames, 960 x 720, 24 fps, and 24.25 seconds:
+`docs/assets/t_u_cube_full_assembly_curobo_v1.mp4`.
+
+The first final-reveal attempt requested an accidental hard-coded 100 mm
+holder retreat. The completed object had already been placed and released,
+but the fourth 25 mm waypoint failed. The final code uses the config's verified
+75 mm retreat, and all four waypoints pass.
+
+The root test command is now unambiguous (`pytest.ini` excludes vendored test
+suites). The final project result is `19 passed`; warnings are upstream
+`yourdfpy`/NumPy deprecations.
+
+### Evidence boundary and next hardware gate
+
+This checkpoint proves that one collision-aware kinematic sequence exists for
+the exact current model, exact current grasp-frame contract, actual AprilCube
+meshes, qualified grasp candidates, declared table, and explicit attachment
+semantics. The video is a replay of that result.
+
+It does not yet prove ROS 2 execution, Dex3 command tracking, seated-base pose
+repeatability, real magnet capture tolerance, AprilTag pose accuracy, table
+registration, camera extrinsics, or grasp survival under arm acceleration.
+The next implementation gate is the ROS 2 arm/hand execution boundary plus a
+slow single-part hardware pick using the same candidate and measured runtime
+object pose—not another change to the planning architecture.

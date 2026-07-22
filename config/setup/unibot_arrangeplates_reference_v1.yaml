@@ -70,25 +70,99 @@ collection_median_seated_posture_rad:
   right_ankle_pitch_joint: -0.258802
   waist_pitch_joint: 0.171450
 
+camera_frame_contract:
+  references:
+    unitree_g1_urdf: >-
+      https://github.com/unitreerobotics/unitree_lerobot/blob/41c2805742de879ddab2d8d6beaeaf215f876395/unitree_lerobot/eval_robot/assets/g1/g1_body29_hand14.urdf
+    unitree_camera_hardware: >-
+      https://github.com/unitreerobotics/xr_teleoperate/blob/7dc9aa1a6edbf4a9f4f887d8ab6fc449ea5135f6/Device.md
+    nvidia_camera_alignment_config: >-
+      https://github.com/NVlabs/GR00T-VisualSim2Real/blob/92bf0863d4a9b6ee29849736152b7769bd45c49c/gr00t/rl/config/simulator/isaacsim.yaml
+    nvidia_optical_axis_mapping: >-
+      https://github.com/NVlabs/GR00T-WholeBodyControl/blob/0e35637c34cb0296658b744735f63c5fdbd4ca62/gear_sonic/envs/manager_env/mdp/utils.py
+  # state_d435 is FK for this official fixed link, not the pose of either
+  # external-stereo optical frame.
+  state_d435_child_frame: d435_link
+  state_d435_parent_frame: gripper_base
+  torso_T_d435_link:
+    translation_m: [0.0576235, 0.01753, 0.42987]
+    rpy_rad: [0.0, 0.8307767239493009, 0.0]
+    validation: >-
+      Matches the official Unitree G1 URDF exactly and remains constant when
+      inverse(state_torso) * state_d435 is evaluated over all 1,735 frames of
+      ArrangePlates episode 0 (translation residual below 1e-8 m).
+  source_stereo:
+    type: optional_external_rgb_stereo
+    is_builtin_d435i: false
+    unitree_optical_extrinsic_published: false
+    note: >-
+      The D435i is physically a stereo-depth camera (two IR imagers, an RGB
+      sensor, and an IMU). Unitree's teleoperation documentation calls the
+      built-in D435i option "monocular" because it exposes one head-view image
+      in that application; this is a stream/use-mode label, not a description
+      of the hardware. The dataset's two RGB head_stereo views come from the
+      separately mounted stereo unit. The dataset publishes its intrinsics and
+      left-to-right calibration, but no rigid transform from either optical
+      frame to a robot link.
+  nominal_project_camera_alignment_seed:
+    source: nvidia_groot_visualsim2real_released_real2sim_alignment
+    d435_link_T_camera_link:
+      translation_m: [0.0, 0.035, 0.0]
+      quaternion_wxyz: [0.99955, 0.0, 0.0299955, 0.0]
+      equivalent_rotation_y_rad: 0.060000002
+    # NVIDIA's simulated camera uses X forward, Y left, Z up. These matrices
+    # map points from an OpenCV optical frame (X right, Y down, Z forward).
+    camera_link_R_left_optical:
+      - [0.0, 0.0, 1.0]
+      - [-1.0, 0.0, 0.0]
+      - [0.0, -1.0, 0.0]
+    d435_link_T_left_optical:
+      - [0.0, -0.0599640065, 0.9982005399, 0.0]
+      - [-1.0, 0.0, 0.0, 0.035]
+      - [0.0, -0.9982005399, -0.0599640065, 0.0]
+      - [0.0, 0.0, 0.0, 1.0]
+    calibration_code_released_by_nvidia: false
+    derivation_documented_by_nvidia: false
+    status: simulation_seed_only_pending_our_g1_extrinsic_calibration
+    limitation: >-
+      NVIDIA releases these fixed numbers with the comment that they match the
+      RealSense 435 by real2sim alignment, but releases no routine that measures
+      them. Their policy training separately randomizes camera extrinsics; that
+      improves robustness but is not calibration. This seed is neither a
+      measurement of our G1 nor a Unitree-published calibration of the optional
+      external stereo bracket. Our real setup needs a one-time target-based
+      robot-camera extrinsic calibration.
+
 table_plane_reference:
   source_episode_index: 0
-  source_frame_index: 60
-  source_timestamp_s: 2.0
-  method: calibrated_rectified_stereo_plane_fit
+  source_frame_indices: [0, 60]
+  source_timestamps_s: [0.0, 2.0]
+  method: calibrated_rectified_stereo_plane_fit_with_nominal_camera_extrinsic
   source_camera: observation.images.head_stereo
-  parent_frame: dataset_kinematic_base_unconfirmed
-  point_on_plane_m: [0.4837280958, -0.0698638939, 0.0573966111]
-  upward_normal: [-0.03318253, 0.01245777, 0.99937165]
-  normal_tilt_deg: 2.03125
-  sampled_surface_z_m:
-    median: 0.0573966111
-    q05: 0.0431970635
-    q95: 0.0757677333
-  fit_inlier_count: 2400
+  parent_frame: gripper_base
+  plane_equation: normal_dot_point_equals_offset_m
+  upward_normal_mean: [0.0126173834, -0.0021450500, 0.9999180968]
+  offset_m_mean: 0.04152255
+  horizontal_surface_z_at_parent_origin_m: 0.04152595
+  cross_check:
+    frame_0:
+      fit_inlier_count: 5840
+      upward_normal: [0.02133118, 0.00768187, 0.99974294]
+      normal_tilt_deg: 1.299
+      plane_offset_m: 0.04139694
+      inlier_plane_std_m: 0.00227662
+    frame_60:
+      fit_inlier_count: 4130
+      upward_normal: [0.00390141, -0.01197160, 0.99992074]
+      normal_tilt_deg: 0.721
+      plane_offset_m: 0.04164816
+      inlier_plane_std_m: 0.00229088
   note: >-
-    This is a metric table pose relative to the source kinematic base, not a
-    claimed world height. The source does not explicitly name the parent of
-    state_d435; confirm its convention before using the numeric plane directly.
+    The two plane offsets agree within 0.26 mm and become nearly horizontal
+    only with the positive 0.06 rad NVIDIA camera correction. This independently
+    supports the nominal alignment seed, but it is still a stereo-derived
+    reference in the dataset's gripper_base frame, not a ground height or a
+    substitute for measuring the real seated setup.
 
 adoption_gate:
   - Map every named source joint to the selected official G1 URDF.

@@ -9,7 +9,7 @@ maintaining correct robot, object, attachment, and collision state.
 
 ```text
 GraspGenX      proposes object-relative grasps
-Newton         qualifies grasp/contact behavior offline
+Isaac/PhysX    qualifies grasp/contact behavior offline with the VIRAL profile
 cuRoboV2       plans collision-aware G1 motion
 sequence layer applies fixed stages and explicit scene-state transitions
 ROS 2 bridge   executes approved trajectories on hardware later
@@ -27,8 +27,10 @@ ROS 2 bridge   executes approved trajectories on hardware later
 6. The complete object is placed, detached from the holder, and restored to
    the world collision model.
 
-Arm assignment is selected from reachability. The executor uses symmetric
-`holder_hand` and `worker_hand` roles rather than hard-coded left/right stages.
+The current readiness check selects the left hand as holder and the right hand
+as worker because that is the qualified-pool combination available now. Every
+selected candidate must be reachable at its pickup and its future mating pose;
+the assignment can be changed when the corresponding pools are available.
 
 ## Verified cuRoboV2 contract
 
@@ -97,20 +99,30 @@ meet their declared tolerances. It then removes U from the worker attachment
 slot and replaces the holder's carried model with T+U. No operation invents an
 offset or changes collision state outside its declared target.
 
-The executor remains object-agnostic. A task file supplies part IDs, connector
-frames, qualified grasp candidates, assembly order, holder/worker roles, and
-the final placement.
+The stage primitives and declarative attachment state are reusable. The
+research-prototype `execute()` choreography is intentionally specific to the
+T/U/cube reveal and can be rewritten when the demo changes; it is not a
+backward-compatible generic task language.
 
-## Next visual checkpoint
+## Implemented planning checkpoint
 
-Before implementing the complete sequence:
+The complete fixed sequence now plans successfully with clean cuRobo v0.8.0:
 
-1. Load the actual table and one 45 mm AprilCube part with the shipped G1.
-2. Show the seated/start state and both palm tool frames.
-3. Convert qualified GraspGenX candidates using the verified frame contract.
-4. Plan to pregrasp and contact approach while the table remains collidable.
-5. Attach the part to one named hand slot and plan a lift.
-6. Export the planned result for visual review before adding the second hand.
+1. Pick the T with a qualified left-Dex3 central-stem grasp.
+2. Pick the U with the right hand, mate from below, transfer U into the left
+   composite attachment, release, and retreat the right hand.
+3. Pick the cube with the right hand, mate from above, transfer it into the
+   composite attachment, release, and retreat.
+4. Place the completed 360 mm figure, open the holder, restore all three parts
+   as world objects, and retreat for the final reveal.
 
-This checkpoint tests geometry and reachability; the API audit has already
-established the required execution and attachment mechanisms.
+The planner keeps the table, non-target parts, robot self-collision, and the
+nonmoving arm collision-live. It hides only the intentional-contact target (or
+the holder attachment at exact connector contact) for the stage where that
+contact is required. Magnet attraction is not simulated: a snap is an explicit
+scene-state transfer at the declared connector transform.
+
+This is a collision-aware kinematic planning result and exact-trajectory
+visualization. It is not yet a robot execution result, a magnetic connector
+physics test, or proof that the seated hardware bridge and perception chain
+are complete.

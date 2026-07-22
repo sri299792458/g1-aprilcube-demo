@@ -264,7 +264,12 @@ def run_shard(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, action="append")
-    parser.add_argument("--hand-side", choices=("right",), default="right")
+    parser.add_argument(
+        "--hand-side",
+        choices=("right", "left"),
+        default="right",
+        help="Physical Dex3 side to qualify with its matching Isaac asset.",
+    )
     parser.add_argument("--shards", default="all")
     parser.add_argument(
         "--max-grasps",

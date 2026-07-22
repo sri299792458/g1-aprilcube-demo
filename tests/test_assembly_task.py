@@ -67,9 +67,9 @@ def test_mating_transforms_are_exact_and_final_height_is_360_mm():
     )
 
 
-def test_readiness_reports_missing_left_hand_atlases_without_faking_them():
+def test_readiness_selects_left_holder_and_right_worker():
     report = load_assembly_task(TASK_PATH).readiness_report()
-    assert not report["motion_planning_ready"]
+    assert report["motion_planning_ready"]
     assignments = {
         tuple(sorted(item["role_to_hand"].items())): item for item in report["assignments"]
     }
@@ -79,7 +79,8 @@ def test_readiness_reports_missing_left_hand_atlases_without_faking_them():
         "cube_head",
     }
     left_holder = assignments[(('holder', 'left'), ('worker', 'right'))]
-    assert {item["part"] for item in left_holder["missing_grasp_pools"]} == {"t_body"}
+    assert left_holder["ready"]
+    assert left_holder["missing_grasp_pools"] == []
 
 
 def test_pick_and_mate_commands_do_not_depend_on_newton():
