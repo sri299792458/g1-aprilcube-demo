@@ -15,28 +15,38 @@ There is no hand-authored grasp.
 - The assembled figure is placed upright on the table.
 - Grasp candidates come from GraspGenX; cuRoboV2 is the motion-planning backend.
 
-The exact attachment-state contract is recorded in
-[the execution-stack specification](docs/execution_stack.md).
+The implemented runtime contract and every implementation-driven correction
+are recorded in [the runtime cuRobo specification](docs/runtime_curobo_assembly_spec.md).
+The earlier fixed-scene design remains in
+[the execution-stack specification](docs/execution_stack.md) as historical
+regression context.
 
-## Current checkpoint
+## Current runtime checkpoint
 
-[Watch the complete collision-aware T/U/cube assembly plan](docs/assets/t_u_cube_full_assembly_curobo_v1.mp4).
-The 24.25 s video is reconstructed from the exact successful 14-joint cuRobo
-trajectories and saved attachment state—not from a separately animated demo.
-It uses the current Unitree Dex3 visual meshes and actual 45 mm AprilCube
-T/U/cube meshes.
+[Watch the runtime-conditioned T/U/cube assembly plan](docs/assets/t_u_cube_runtime_curobo_v2.mp4).
+The video is reconstructed from the saved successful 14-joint cuRobo
+trajectories and attachment state—not from a separately animated preview. It
+uses the current Unitree Dex3 meshes, actual 45 mm AprilCube T/U/cube meshes,
+and the exact grasp candidates selected for the observed loose-part poses.
 
-Reproduce the plan and video from the repository root:
+Plan the nominal observation and reproduce the video from the repository root:
 
 ```bash
-PYTHONPATH=.:third_party/GraspGenX/ext/curobo \
-  .venv/bin/python tools/run_full_assembly.py
-.venv/bin/python tools/render_full_assembly.py
+.venv/bin/python tools/run_runtime_assembly.py \
+  --observation config/observations/t_u_cube_nominal_v1.yaml \
+  --output artifacts/runtime_assembly/t_u_cube_v2/nominal
+.venv/bin/python tools/render_full_assembly.py \
+  --config config/planning/t_u_cube_runtime_v2.yaml \
+  --run-dir artifacts/runtime_assembly/t_u_cube_v2/nominal
 ```
 
-The generated report, trajectories, render state, timeline, and MP4 are under
-`artifacts/full_assembly/t_u_cube_v1/`. These generated artifacts are ignored
-by Git; the reviewed MP4 above is the committed visual checkpoint.
+Run the same executable against the second separated XY/yaw arrangement by
+changing only `--observation` to
+`config/observations/t_u_cube_shuffled_v1.yaml`. Both observations complete
+all six compiler-checked task transitions. Generated reports, trajectories,
+render state, timelines, and MP4s live under
+`artifacts/runtime_assembly/t_u_cube_v2/`; the reviewed nominal MP4 above is
+the committed visual checkpoint.
 
 ![Selected 45 mm task scale](docs/assets/aprilcube_45mm_scale.png)
 
@@ -86,10 +96,11 @@ source .venv/bin/activate
 ```
 
 Python 3.11 is managed automatically from `.python-version`. The lock contains
-GraspGenX, PyTorch 2.6.0+cu124, Newton 1.0.0, Warp 1.15.0, MuJoCo 3.5.0, and
-MuJoCo-Warp 3.5.0.2. In this project, **Newton owns the model and collision
-pipeline while MuJoCo-Warp is the GPU physics solver behind Newton's
-`SolverMuJoCo`**.
+GraspGenX, cuRobo, PyTorch 2.6.0+cu124, Newton 1.0.0, Warp 1.15.0, MuJoCo
+3.5.0, and MuJoCo-Warp 3.5.0.2. The runtime assembly planner uses cuRobo and
+does not depend on Newton or MuJoCo. Those packages remain for isolated grasp
+physics validation; when that path is used, Newton owns the model while
+MuJoCo-Warp is the GPU solver behind Newton's `SolverMuJoCo`.
 
 Verify imports, CUDA, and an actual rigid-contact solve:
 

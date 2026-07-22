@@ -1,0 +1,17 @@
+schema_version: 1
+observation_id: t_u_cube_shuffled_v1
+stamp: simulation
+planning_frame: world
+table:
+  center: [0.55, 0.0, 0.68]
+  dimensions: [0.80, 0.80, 0.04]
+objects:
+  t_body:
+    translation: [0.38, 0.25, 0.79]
+    quaternion_xyzw: [0.0, 0.0, 0.0871557, 0.9961947]
+  u_legs:
+    translation: [0.40, -0.20, 0.7675]
+    quaternion_xyzw: [0.0, 0.0, -0.1305262, 0.9914449]
+  cube_head:
+    translation: [0.38, -0.32, 0.7225]
+    quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]

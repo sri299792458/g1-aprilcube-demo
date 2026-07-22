@@ -1,0 +1,101 @@
+schema_version: 2
+planner_id: t_u_cube_runtime_v2
+
+robot:
+  model: generated/robot/g1_fixed_torso_dual_dex3.yml
+  urdf: generated/robot/g1_fixed_torso_dual_dex3.urdf
+  base_world_translation_m: [0.0, 0.0, 0.75]
+  arm_joint_names:
+    - left_shoulder_pitch_joint
+    - left_shoulder_roll_joint
+    - left_shoulder_yaw_joint
+    - left_elbow_joint
+    - left_wrist_roll_joint
+    - left_wrist_pitch_joint
+    - left_wrist_yaw_joint
+    - right_shoulder_pitch_joint
+    - right_shoulder_roll_joint
+    - right_shoulder_yaw_joint
+    - right_elbow_joint
+    - right_wrist_roll_joint
+    - right_wrist_pitch_joint
+    - right_wrist_yaw_joint
+  # Collision-checked ready state from the exact current dual-Dex3 model.
+  start_arm_joint_positions: [-0.58092976, 0.65199596, 0.38743800,
+                              0.04474050, -0.36370507, 0.71538401, -0.30216664,
+                              -0.58512127, -0.62331915, -0.41847223,
+                              0.04542468, 0.36965990, 0.73370647, 0.30281359]
+  contact_links:
+    left: [left_hand_thumb_2_link, left_hand_middle_1_link, left_hand_index_1_link]
+    right: [right_hand_thumb_2_link, right_hand_middle_1_link, right_hand_index_1_link]
+  # These are the exact rev-1.0 profiles used to qualify the atlas in PhysX.
+  # cuRobo locks the seven finger joints at the appropriate endpoint profile
+  # for each arm-planning stage; finger closure itself is a separate command.
+  hand_profiles:
+    left: third_party/GraspGenX/assets/x_grippers/dex3_rev1_left/config.json
+    right: third_party/GraspGenX/assets/x_grippers/dex3_rev1_right/config.json
+
+planner:
+  # 32 is the measured reliable goal-set capacity of the pinned checkout.
+  candidate_goalset_size: 32
+  num_ik_seeds: 32
+  num_trajopt_seeds: 4
+  position_tolerance_m: 0.005
+  orientation_tolerance_rad: 0.05
+  use_cuda_graph: true
+  warmup: true
+  collision_cache: {obb: 16, mesh: 8}
+  attachment_spheres: {t_body: 32, u_legs: 32, cube_head: 8}
+  attachment_surface_radius_m: 0.004
+
+motion:
+  pick_approach_local_z_m: -0.10
+  pick_retract_world_z_m: 0.10
+  # U approaches its lower connector from below; the head approaches from above.
+  mate_precontact_world_z_m: {u_legs: -0.055, cube_head: 0.055}
+  placement_minimum_precontact_clearance_m: 0.020
+  final_retreat_world_z_m: 0.075
+
+workspace:
+  # Samples are bounded regions. Center-first ordering is deterministic but no
+  # individual world pose is selected in the file.
+  u_stage:
+    x_m: [0.40, 0.42, 0.44]
+    y_m: [-0.03, 0.0, 0.03]
+    z_m: [1.00, 1.02, 1.04]
+    yaw_deg: [-10.0, 0.0, 10.0]
+    maximum_candidate_count: 81
+  head_stage:
+    x_m: [0.40, 0.42, 0.44]
+    y_m: [-0.03, 0.0, 0.03]
+    z_m: [0.93, 0.95, 0.97]
+    yaw_deg: [-10.0, 0.0, 10.0]
+    maximum_candidate_count: 81
+  placement:
+    x_m: [0.40, 0.42, 0.44]
+    y_m: [-0.03, 0.0, 0.03]
+    yaw_deg: [-10.0, 0.0, 10.0]
+    clearance_m: 0.003
+    maximum_candidate_count: 27
+
+search:
+  # One collision-aware representative is collected from each successful atlas
+  # batch until these bounds; complete paired modes are qualified before run.
+  pickup_representatives: {t_body: 40, u_legs: 24, cube_head: 8}
+  maximum_qualified_modes: 4
+
+# This is render metadata, not an object-layout contract.
+table:
+  center_world_m: [0.55, 0.0, 0.68]
+  dimensions_m: [0.80, 0.80, 0.04]
+parts:
+  t_body: {mesh: generated/aprilcube_parts/t_body/grasp_mesh.obj}
+  u_legs: {mesh: generated/aprilcube_parts/u_legs/grasp_mesh.obj}
+  cube_head: {mesh: generated/aprilcube_parts/cube_head/grasp_mesh.obj}
+render:
+  fps: 24
+  hold_frames: 18
+  camera_eye_world_m: [1.23, -1.23, 1.20]
+  camera_target_world_m: [0.34, 0.0, 0.88]
+  resolution: [960, 720]
+  output_dir: artifacts/runtime_assembly/t_u_cube_v2

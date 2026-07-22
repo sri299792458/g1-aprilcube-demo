@@ -2010,3 +2010,177 @@ registration, camera extrinsics, or grasp survival under arm acceleration.
 The next implementation gate is the ROS 2 arm/hand execution boundary plus a
 slow single-part hardware pick using the same candidate and measured runtime
 object pose—not another change to the planning architecture.
+
+## 2026-07-22 — runtime-conditioned cuRobo assembly replacement completed
+
+### Why the fixed runner was not extended
+
+The previous `assembly_runner.py` proved one collision-aware choreography for
+one prepared world. It selected grasp IDs and world poses in configuration,
+used project-side IK/trajectory handling, and therefore did not answer the
+actual demo requirement: receive three separated AprilCube poses at runtime,
+select ordinary physics-qualified atlas candidates at those poses, and plan
+the complete task without trays, pegs, cradles, or silently restored nominal
+poses.
+
+The old runner and its video were retained as regression evidence. Nothing
+was deleted. The replacement is a separate path whose contract is
+`docs/runtime_curobo_assembly_spec.md`.
+
+### Implemented boundary
+
+The new path consists of:
+
+- `config/observations/t_u_cube_{nominal,shuffled}_v1.yaml`: versioned table
+  and loose-object measurements, independent of planner configuration;
+- `g1_aprilcube_demo/runtime/observation.py`: finite/normalized transform,
+  exact mesh support, tabletop-XY support, ID, and overlap validation;
+- `planning/grasp_goalset.py`: immutable atlas loading and only the declared
+  transform `world_T_object * object_T_G`;
+- `planning/workspace.py`: bounded, center-first work and placement samples;
+- `planning/curobo_backend.py`: the narrow adapter over released
+  `MotionPlanner`, `GoalToolPose`, `ToolPoseCriteria`, and the existing
+  attachment managers;
+- `planning/runtime_assembly.py`: connector-mode qualification, complete
+  in-memory planning, task-state assertions, backtracking, and reports; and
+- `tools/run_runtime_assembly.py`: one observation/config/task CLI.
+
+No project Cartesian interpolator, project IK solver, manually authored
+grasp, fixed loose-object pose, or render-based grasp decision exists in this
+path. `MotionPlanner.plan_grasp` owns candidate selection, approach, and exact
+grasp planning. `plan_pose`/`plan_cspace` own transfers, and
+`ToolPoseCriteria.linear_motion` owns connector/descent/retreat constraints.
+
+### Implementation findings and the reasons for each correction
+
+1. **Goal-set capacity is 32 in this pinned solver.** Batches of 8, 16, and 32
+   preserved a known good candidate; a 48-entry request failed even with that
+   candidate first. All candidates remain eligible, but are sent in
+   deterministic 32-entry goal sets. A warmed planner is reused and its random
+   seed reset for every slice so feasibility does not depend on preceding
+   failures.
+
+2. **A multi-tool goal set does not preserve pair identity.** cuRobo returns a
+   goal-set index per tool, while `plan_grasp` applies the first tool's index to
+   every tool. Every holder/worker mate hypothesis is therefore a singleton
+   two-tool `GoalToolPose`; left and right cannot be independently selected
+   from different supposed rows.
+
+3. **The public attachment facade is broken in this checkout.** It forwards
+   to a nonexistent `TrajOptSolver.attachment_manager`. The already-created
+   managers live at `ik_solver.core.attachment_manager` and
+   `trajopt_solver.core.attachment_manager`, and IK and TrajOpt have distinct
+   kinematics instances. The adapter fits one immutable sphere tensor per
+   AprilCube mesh using the released manager, then sends the identical tensor
+   and transform to both managers.
+
+4. **Finger geometry must match task state.** The generated robot originally
+   locked all 14 Dex3 finger joints at zero. That is correct before pickup but
+   wrong while carrying and mating. Each short-lived planner now locks both
+   hands at the exact rev-1.0 descriptor open/close interpolation: open for
+   pickup, closed after attachment, open after release. The arm planner does
+   not pretend to simulate closure; the separate finger command changes the
+   task state, and the next planner sees the correct collision geometry.
+
+5. **Stationary means locked in the robot model.** A one-arm stage locks the
+   other seven arm joints before cuRobo builds kinematics. The code never plans
+   two arms and projects one away afterward. Coupled endpoint qualification is
+   the only genuinely 14-arm-DOF solve; execution moves the two arms
+   sequentially.
+
+6. **Intentional support/contact boundaries need narrow permissions.** The
+   newly attached pickup object begins in table contact, so only `table` is
+   disabled during its constrained upward separation. At a mate, the holder
+   composite slot is hidden only during the worker's exact connector
+   separation. During final support descent only the table is hidden. After
+   release, the hand begins in contact with the newly published T/U/cube world
+   copies, so only those named part cuboids are hidden during the constrained
+   upward empty-hand retreat. The permissions are restored after each call;
+   self-collision and unrelated obstacles remain active.
+
+7. **Fixed placement lift offsets were geometrically wrong.** Trial 60 mm and
+   150 mm offsets asked a near-limit holder to move farther upward even though
+   the assembly was already above its derived support pose. Placement now
+   keeps the actual current root height for the horizontal transfer, then
+   descends to `table_top - assembly_min_z + 3 mm`.
+
+8. **A cached paired IK vector is a witness, not a trajectory.** The varied
+   scene showed that the collision-free paired precontact joint vector could
+   have no path from the realized post-cube-pick state. Execution tries that
+   joint target first. If it fails, upstream `plan_pose` may find another
+   joint branch at the identical grasp-frame precontact pose; the exact linear
+   connector approach is then replanned from the branch actually reached. No
+   object target or waypoint changes.
+
+9. **Bounded backtracking needs geometric diversity.** The first four-mode cap
+   came from a depth-first Cartesian product, so every mode reused one T and
+   one cube grasp and changed only U. The corrected list takes at most one
+   complete connector mode per distinct T grasp. This is diversity among
+   already cuRobo-qualified modes, not a new hand-authored grasp heuristic.
+
+10. **Mode caches must be safe but not punish unrelated iteration.** Cache
+    keys cover a versioned qualification contract, backend/goal/workspace
+    source, planner config, observation, task, robot config/URDF, both hand
+    profiles, every atlas, and every part mesh/config. Execution/report-only
+    edits do not invalidate minutes of identical endpoint work; qualification
+    logic edits must bump `MODE_CACHE_CONTRACT`.
+
+### Runtime-variation evidence
+
+The same executable and `t_u_cube_runtime_v2.yaml` completed two observations:
+
+- nominal: T `t_body__seed_0000000079__sample_089`, U
+  `u_legs__seed_0000000119__sample_043`, cube
+  `cube_head__seed_0000000119__sample_201`, 33 events, 138 segments, no
+  endpoint fallback;
+- varied XY/yaw: T `t_body__seed_0000000139__sample_125`, U
+  `u_legs__seed_0000000119__sample_043`, cube
+  `cube_head__seed_0000000089__sample_161`, 34 events, 138 segments, one
+  same-pose alternate-IK fallback.
+
+Both reports assert the compiler's state after all six steps: `pick_t`,
+`pick_u`, `mate_u_to_t`, `pick_head`, `mate_head_to_t`, and
+`place_complete`. Both terminate with `success: true` and `complete`.
+
+An earlier deliberately broad shuffled observation was not made to pass by
+weakening collisions. At 45-degree cube yaw, all four diverse connector modes
+failed to connect the realized cube-pick arm state to head precontact. A later
+cube location near the rotated U admitted no collision-free cube pickup at
+all. The accepted second scene remains separated and changes T/U XY and yaw,
+but keeps the cube in a tested clear envelope. This is the intended meaning
+of runtime scattering for the first demo.
+
+### Reproduction and visual evidence
+
+```bash
+.venv/bin/python tools/run_runtime_assembly.py \
+  --observation config/observations/t_u_cube_nominal_v1.yaml \
+  --output artifacts/runtime_assembly/t_u_cube_v2/nominal
+
+.venv/bin/python tools/run_runtime_assembly.py \
+  --observation config/observations/t_u_cube_shuffled_v1.yaml \
+  --output artifacts/runtime_assembly/t_u_cube_v2/shuffled
+
+.venv/bin/python tools/render_full_assembly.py \
+  --config config/planning/t_u_cube_runtime_v2.yaml \
+  --run-dir artifacts/runtime_assembly/t_u_cube_v2/nominal \
+  --motion-frames 10 --hold-frames 10 \
+  --output docs/assets/t_u_cube_runtime_curobo_v2.mp4
+```
+
+The committed video is 408 frames at 960×720 and 24 fps (17.0 seconds). It was
+checked as a contact sheet and at the terminal frame: loose parts, T pickup, U
+pickup/mate, cube pickup/mate, support placement, release, and both open-hand
+retreats are visible. The complete root test result is `25 passed`; the 132
+warnings are existing `yourdfpy`/NumPy deprecations.
+
+### Evidence boundary
+
+This proves collision-aware kinematic planning for two observed scenes, the
+current G1/Dex3 collision model, exact 45 mm AprilCube geometry, immutable
+physics-qualified atlas grasps, and explicit attachment semantics. It does
+not prove magnet capture, grasp survival under real acceleration, ROS 2
+trajectory execution, seated base repeatability, AprilTag accuracy, table
+registration, or camera extrinsics. Those remain later hardware gates and
+must consume this planner's observation/report/trajectory contracts rather
+than forcing another planning rewrite.

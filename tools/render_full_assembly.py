@@ -204,6 +204,12 @@ def main() -> None:
     parser.add_argument("--run-dir", type=Path, default=None)
     parser.add_argument("--motion-frames", type=int, default=6)
     parser.add_argument("--hold-frames", type=int, default=12)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Optional MP4 path; defaults to <run-dir>/full_assembly.mp4",
+    )
     parser.add_argument("--no-render", action="store_true")
     args = parser.parse_args()
 
@@ -217,7 +223,8 @@ def main() -> None:
         return
 
     width, height = cfg["render"]["resolution"]
-    output = run_dir / "full_assembly.mp4"
+    output = (args.output or run_dir / "full_assembly.mp4").resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
             sys.executable,
