@@ -84,9 +84,10 @@ search:
   pickup_representatives: {t_body: 40, u_legs: 24, cube_head: 8}
   maximum_qualified_modes: 4
 
-# This is render metadata, not an object-layout contract.
+# Fallback render metadata. The runtime collision scene uses the measured
+# observation table, which currently has the same dimensions and height.
 table:
-  center_world_m: [0.55, 0.0, 0.68]
+  center_world_m: [0.55, 0.0, 0.82]
   dimensions_m: [0.80, 0.80, 0.04]
 parts:
   t_body: {mesh: generated/aprilcube_parts/t_body/grasp_mesh.obj}

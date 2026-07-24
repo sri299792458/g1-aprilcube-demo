@@ -2184,3 +2184,145 @@ trajectory execution, seated base repeatability, AprilTag accuracy, table
 registration, or camera extrinsics. Those remain later hardware gates and
 must consume this planner's observation/report/trajectory contracts rather
 than forcing another planning rewrite.
+
+## 2026-07-24 — pause: intrinsic grasps were confused with tabletop pickups
+
+The flat-part observation exposed a conceptual error, not a shortage of raw
+GraspGenX samples. Implementation is paused; no further table or object-pose
+tuning should be used to hide the error.
+
+### What the thousands actually prove
+
+The arm pools contain every Isaac/PhysX pass from the VIRAL-profile,
+unsupported-object qualification:
+
+- left T: 1,240 poses in 40 coarse families;
+- right U: 675 poses in 28 coarse families; and
+- right cube: 2,437 poses in 40 coarse families.
+
+Each pose proves that the isolated hand can close on and retain that object
+under the recorded free-space physics test. It does not prove that the open
+hand clears a support surface, that a pregrasp can be reached, that the G1 arm
+has IK, that a path exists from the seated ready state, or that the grasp
+leaves an assembly connector usable.
+
+As a non-authoritative but revealing diagnostic, the exact current-Dex3 open
+visual mesh was transformed by every unchanged `object_T_G` for the present
+flat observation. Requiring both the terminal mesh and its 10 cm local-Z
+pregrasp to remain above the tabletop left only:
+
+- 6 / 1,240 T poses;
+- 4 / 675 U poses; and
+- 57 / 2,437 cube poses.
+
+The full cuRobo robot/collision model must make the real admission decision,
+but this count explains why changing the adjustable table height did not
+create a broad solution set. Object and tabletop move together, so their
+relative clearance is unchanged; height only changes arm reachability.
+
+### Concrete implementation defects found in the audit
+
+1. `allowed_grasp_cuboids` and `keep_clear_connections` are parsed and schema
+   checked, but the runtime never applies them to candidate admission or
+   ranking. The written task says “hold the T by its stem and preserve both
+   connector corridors”; the search currently does not enforce that claim.
+2. The task schema says physical hands are assigned after reachability, but
+   runtime pool loading and execution hard-code left T, right U, and right
+   cube.
+3. Contact families describe digit-chain participation, palm contact, and a
+   coarse approach sector. They do not partition the T/U by grasped voxel or
+   guarantee support-surface accessibility. Thousands of members are highly
+   correlated samples, not thousands of independent tabletop modes.
+4. `_qualified_pick_representatives()` submits family-ordered batches to one
+   opaque `plan_grasp` call and records at most one selected pose per
+   successful batch. A failed call does not reveal whether the cause was
+   terminal table collision, pregrasp collision, IK, start-to-pregrasp
+   connectivity, or the constrained final approach.
+5. The project deliberately used diffusion-only generation. The released
+   GraspGenX default also offers an OBB expert for top-down candidates and its
+   scene-point-cloud demo filters gripper/scene collisions before downstream
+   planning. The scene filter is directly relevant. The OBB expert is only an
+   optional A/B source: it technically accepts the Dex3 `revolute_3f`
+   descriptor and scores its base-pose proposals with the Dex3-conditioned
+   discriminator, but its whole-object bounding-box prior does not model
+   three-finger contact modes and can be particularly weak on non-convex T/U
+   geometry. It must not replace the diffusion atlas by assumption.
+6. The previous committed MP4 demonstrates upright prepared objects. It is
+   not evidence for the newly requested flat/random stable orientations.
+   Current flat observation edits remain uncommitted while this correction is
+   reviewed.
+
+### Corrected boundary to evaluate next
+
+Keep the intrinsic physics atlas as evidence; do not delete or relabel it.
+Add a separate scene-conditioned feasibility ledger:
+
+```text
+GraspGenX diffusion candidates
+    (+ released OBB candidates only as a separately tagged fallback experiment)
+    -> exact flat/stable object pose in the measured scene
+    -> target-excluded hand/scene clearance
+    -> connector/allowed-region keep-out checks
+    -> batched left/right endpoint IK
+    -> start-to-pregrasp and constrained approach planning
+    -> Isaac/PhysX supported pickup and lift qualification where needed
+    -> downstream mate/placement compatibility
+```
+
+Every candidate must retain its immutable `object_T_G` and receive a result at
+each gate with a named rejection reason. A visual audit should show the exact
+open hand, target, table, approach segment, assigned arm, and pass/fail gate
+before the full assembly runner is changed again.
+
+The assembly sequence is already fixed, so this does not require cuTAMP.
+After per-stage feasible sets exist, the discrete problem is a small layered
+compatibility graph: choose a holder grasp that survives pickup and both mate
+poses, plus worker grasps that survive their pickup and mate poses, then ask
+cuRobo to verify the complete continuous paths. This replaces early
+representative truncation with task-conditioned mode selection.
+
+### First reproducible scene-conditioned checkpoint
+
+The admission ledger is now implemented by
+`tools/audit_runtime_grasps.py`; its visual review is generated by
+`tools/render_runtime_grasp_audit.py`. The authoritative nominal report is
+`artifacts/runtime_grasp_audit/nominal/audit.json`, and its browsable visual
+index is
+`artifacts/runtime_grasp_audit/nominal/visual/index.html`.
+
+The current nominal flat observation produced:
+
+| Part | intrinsic atlas | open hand clears final + pregrasp | complete upstream `plan_grasp` |
+|---|---:|---:|---:|
+| T with left hand | 1,240 | 6 | 1 |
+| U with right hand | 675 | 4 | 0 |
+| cube with right hand | 2,437 | 57 | 13 |
+
+The analytic support gate uses the exact released open descriptor collision
+mesh at the candidate's unchanged `world_T_G` and at a -0.10 m
+descriptor-local-Z pregrasp. Every support survivor is then submitted
+individually to the same upstream cuRobo `MotionPlanner.plan_grasp` contract
+used by the runtime, from the configured seated-ready arm state and with the
+complete table/object collision scene.
+
+An audit implementation mistake was caught during this checkpoint:
+standalone endpoint IK was initially used to gate whether `plan_grasp` would
+run. One cube pose failed that diagnostic but passed native `plan_grasp`.
+The corrected implementation always treats the complete upstream
+`plan_grasp` result as authoritative. Standalone final/pregrasp IK is now run
+only after a failed pickup request to explain likely endpoint infeasibility;
+it can never veto a successful native pickup plan.
+
+All four support-clear U candidates fail both collision-aware endpoint
+diagnostics. Independent probes also showed the same four wrist orientations
+fail with the collision world removed, after lateral relocation, and across
+table-top heights from 0.64 m through 0.86 m. Therefore this checkpoint does
+not justify moving the U, lowering the table, or changing cuRobo settings.
+It establishes that the current physics-qualified diffusion subset simply
+does not contain a flat-U/right-arm wrist orientation usable by this G1 arm.
+
+This checkpoint deliberately does **not** evaluate allowed grasp cuboids,
+connector keep-outs, the later mate poses, or alternative left/right
+assignment. Those are explicit `not_evaluated` fields in the report. No OBB
+or GraspMoE candidates, manual poses, atlas transforms, object locations, or
+assembly choreography were introduced.

@@ -30,11 +30,22 @@ def test_runtime_observations_are_distinct_supported_scenes_without_fixture():
     shuffled = load_observation(
         ROOT / "config/observations/t_u_cube_shuffled_v1.yaml", MESHES
     )
-    assert np.isclose(nominal.table.top_z, 0.70)
-    assert np.isclose(shuffled.table.top_z, 0.70)
+    assert np.isclose(nominal.table.top_z, 0.84)
+    assert np.isclose(shuffled.table.top_z, 0.84)
     assert any(
         not np.allclose(nominal.world_T_objects[name], shuffled.world_T_objects[name])
         for name in MESHES
+    )
+    for observation in (nominal, shuffled):
+        # T and U are genuinely lying on a broad face: their canonical
+        # thickness axis (object Y) is vertical in the world, not object Z.
+        for name in ("t_body", "u_legs"):
+            rotation = observation.world_T_objects[name][:3, :3]
+            assert np.isclose(abs(rotation[2, 1]), 1.0, atol=1e-6)
+            assert np.isclose(rotation[2, 2], 0.0, atol=1e-6)
+    assert not np.allclose(
+        nominal.world_T_objects["t_body"][:3, :3],
+        shuffled.world_T_objects["t_body"][:3, :3],
     )
     config = yaml.safe_load(
         (ROOT / "config/planning/t_u_cube_runtime_v2.yaml").read_text()
@@ -94,9 +105,9 @@ def test_workspace_is_bounded_center_first_and_placement_height_is_derived():
     work = workspace_samples(cfg["u_stage"])
     assert len(work) == 81
     assert np.allclose(work[0][1][:3, 3], [0.42, 0.0, 1.02])
-    placements = placement_samples(cfg["placement"], 0.70, -0.225)
+    placements = placement_samples(cfg["placement"], 0.84, -0.225)
     assert len(placements) == 27
-    assert all(np.isclose(matrix[2, 3], 0.928) for _, matrix in placements)
+    assert all(np.isclose(matrix[2, 3], 1.068) for _, matrix in placements)
 
 
 def test_new_runtime_has_no_project_ik_or_cartesian_interpolator():

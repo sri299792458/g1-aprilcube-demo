@@ -63,6 +63,15 @@ class PlannedMotion:
     selected_index: int | None = None
 
 
+@dataclass(frozen=True)
+class EndpointCheck:
+    """Result of one upstream cuRobo collision-aware endpoint IK request."""
+
+    success: bool
+    position_error_m: float
+    orientation_error_rad: float
+
+
 class CuroboBackend:
     """Create upstream planners with runtime scenes and explicit locked arms."""
 
@@ -389,6 +398,36 @@ class StagePlanner(_PlannerBase):
         # Preserve both upstream subtrajectories; the runtime records them as
         # separate semantic segments after expanding the active joint names.
         return PlannedMotion(np.empty((0, len(self.backend.arm_joint_names))), result, index)
+
+    def check_endpoint(
+        self,
+        world_T_G: np.ndarray,
+        *,
+        disable_links: Sequence[str] = (),
+    ) -> EndpointCheck:
+        """Ask upstream cuRobo whether one tool pose has collision-aware IK."""
+
+        self.planner.reset_seed()
+        goal = goal_tool_pose(
+            {TOOL[self.side]: [world_T_G]}, self.backend.world_base
+        )
+        self._set_link_collision(disable_links, False)
+        try:
+            result = self.planner.ik_solver.solve_pose(
+                goal,
+                return_seeds=1,
+                current_state=self.q_active,
+            )
+            success = bool(torch.as_tensor(result.success).any())
+            position_error = float(
+                torch.as_tensor(result.position_error).reshape(-1).min().item()
+            )
+            orientation_error = float(
+                torch.as_tensor(result.rotation_error).reshape(-1).min().item()
+            )
+            return EndpointCheck(success, position_error, orientation_error)
+        finally:
+            self._set_link_collision(disable_links, True)
 
     def grasp_submotion(self, grasp_result: Any, attribute: str) -> PlannedMotion | None:
         trajectory = getattr(grasp_result, f"{attribute}_interpolated_trajectory")

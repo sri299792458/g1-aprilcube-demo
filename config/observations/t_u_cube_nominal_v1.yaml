@@ -3,15 +3,20 @@ observation_id: t_u_cube_nominal_v1
 stamp: simulation
 planning_frame: world
 table:
-  center: [0.55, 0.0, 0.68]
+  # Adjustable physical table selected so flat-part top grasps sit inside the
+  # seated G1 arm workspace. Top surface is z=0.84 m.
+  center: [0.55, 0.0, 0.82]
   dimensions: [0.80, 0.80, 0.04]
 objects:
   t_body:
-    translation: [0.40, 0.28, 0.79]
-    quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
+    # Flat on its broad face: world Rz(20 deg) * object Rx(90 deg).
+    translation: [0.38, 0.25, 0.8625]
+    quaternion_xyzw: [0.6963642403, 0.1227878040, 0.1227878040, 0.6963642403]
   u_legs:
-    translation: [0.36, -0.22, 0.7675]
-    quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
+    # Flat on its broad face with a different in-plane heading.
+    translation: [0.42, -0.06, 0.8625]
+    quaternion_xyzw: [0.6903455271, -0.1530459187, -0.1530459187, 0.6903455271]
   cube_head:
-    translation: [0.38, -0.32, 0.7225]
-    quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
+    # Resting on a different cube face.
+    translation: [0.36, -0.29, 0.8625]
+    quaternion_xyzw: [0.7044160264, 0.0616284167, 0.0616284167, 0.7044160264]
