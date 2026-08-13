@@ -3078,3 +3078,39 @@ only completed pick-and-lift. The current boundary is now:
 - kinematic visual review with explicit non-physics drop: PASS;
 - physical full-arm retention and real cube landing in the box: not yet
   tested.
+
+## 2026-08-13 — regenerate the runtime shortlist for the printed 40 mm cube
+
+The first pushed shortlist was found to reference the obsolete 45 mm task
+mesh. It is not valid evidence for the physical cube printed on July 14. The
+canonical runtime shortlist was regenerated from scratch against the released
+AprilCube asset at
+`third_party/aprilcube/models/dex3_safe_cube/mujoco/cube.obj`:
+
+- exact processed mesh bounds: 40 x 40 x 40 mm;
+- rounded geometry: R3 mm;
+- mesh SHA-256:
+  `27c8460e40a85475e87c3cc0d6090c3c9500de4fa7f5728a2462fc099ef3d927`;
+- measured physical mass: 0.030 kg;
+- raw GraspGenX candidates: 4,096 newly inferred poses, not rescaled 45 mm
+  poses;
+- VIRAL-profile Isaac retention passes: 3,178 (77.59%);
+- coarse retained contact families: 46; and
+- executable candidates after open-hand, table, straight-pregrasp,
+  closed-hand, moved-object, closure-motion, and digit-contact gates: 15.
+
+The printed target's textured OBJ duplicates vertices at UV/normal seams.
+Trimesh processing now merges only those coincident vertices before checking
+watertightness; it does not rescale or alter the authored surface. The Isaac
+runner and arm-pool builder now derive the result filename from the configured
+object mesh stem (`cube.yaml`) instead of assuming the old
+`grasp_mesh.yaml` name. The atlas surface reader also accepts the released
+cuboid detector schema directly, so the actual detector config remains the
+source of face dimensions and marker IDs.
+
+The corrected canonical output is
+`artifacts/grasp_shortlists/cube_right_executable_v1/shortlist.yaml`. It
+references the exact 40 mm mesh hash, records a 20 mm maximum closure
+translation (half the actual cube width), contains 15 unique immutable
+`object_T_G` candidates, and supersedes the 45 mm shortlist at the same
+runtime path.

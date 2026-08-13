@@ -84,13 +84,62 @@ def region_id(object_id: str, marker: dict) -> str:
     )
 
 
+def cuboid_markers(source: dict) -> list[dict]:
+    """Adapt the released cuboid detector schema to voxel surface records."""
+    dimensions = np.asarray(source["box_dims"], dtype=np.float64)
+    if dimensions.shape != (3,) or np.any(dimensions <= 0.0):
+        raise ValueError(f"Invalid cuboid box_dims: {source.get('box_dims')}")
+    half = dimensions / 2.0
+    normals = {
+        "+X": np.array([1.0, 0.0, 0.0]),
+        "-X": np.array([-1.0, 0.0, 0.0]),
+        "+Y": np.array([0.0, 1.0, 0.0]),
+        "-Y": np.array([0.0, -1.0, 0.0]),
+        "+Z": np.array([0.0, 0.0, 1.0]),
+        "-Z": np.array([0.0, 0.0, -1.0]),
+    }
+    corners = {
+        "+X": [[half[0], -half[1], half[2]], [half[0], half[1], half[2]],
+               [half[0], half[1], -half[2]], [half[0], -half[1], -half[2]]],
+        "-X": [[-half[0], half[1], half[2]], [-half[0], -half[1], half[2]],
+               [-half[0], -half[1], -half[2]], [-half[0], half[1], -half[2]]],
+        "+Y": [[half[0], half[1], half[2]], [-half[0], half[1], half[2]],
+               [-half[0], half[1], -half[2]], [half[0], half[1], -half[2]]],
+        "-Y": [[-half[0], -half[1], half[2]], [half[0], -half[1], half[2]],
+               [half[0], -half[1], -half[2]], [-half[0], -half[1], -half[2]]],
+        "+Z": [[-half[0], -half[1], half[2]], [-half[0], half[1], half[2]],
+               [half[0], half[1], half[2]], [half[0], -half[1], half[2]]],
+        "-Z": [[-half[0], half[1], -half[2]], [-half[0], -half[1], -half[2]],
+               [half[0], -half[1], -half[2]], [half[0], half[1], -half[2]]],
+    }
+    markers = []
+    for face, ids in source["faces"].items():
+        if face not in normals or len(ids) != 1:
+            raise ValueError(f"Unsupported cuboid face assignment: {face}={ids}")
+        markers.append(
+            {
+                "id": int(ids[0]),
+                "face": face,
+                "voxel": [0, 0, 0],
+                "normal": normals[face].tolist(),
+                "face_corners_mm": np.asarray(corners[face]).tolist(),
+            }
+        )
+    return markers
+
+
 def build_surface_regions(config: dict) -> dict:
     object_cfg = config["object"]
     source_path = project_path(object_cfg["aprilcube_config"])
     source = json.loads(source_path.read_text())
     regions = []
     seen = set()
-    for marker in source["markers"]:
+    markers = source.get("markers")
+    if markers is None:
+        if source.get("target", {}).get("type") != "cuboid":
+            raise ValueError(f"Unsupported AprilCube config schema: {source_path}")
+        markers = cuboid_markers(source)
+    for marker in markers:
         identity = region_id(object_cfg["id"], marker)
         if identity in seen:
             raise ValueError(f"Duplicate generated surface region: {identity}")
@@ -605,7 +654,9 @@ def main() -> None:
     surface_path = artifacts_root / "surface_regions.json"
     atomic_write_text(surface_path, json.dumps(surface, indent=2) + "\n")
     mesh_path = project_path(config["object"]["mesh"])
-    mesh = trimesh.load(mesh_path, force="mesh", process=False)
+    # Merge coincident vertices split only for OBJ texture/normal seams before
+    # checking the physical surface topology.
+    mesh = trimesh.load(mesh_path, force="mesh", process=True)
     if not isinstance(mesh, trimesh.Trimesh) or not mesh.is_watertight:
         raise ValueError(f"Expected one watertight object mesh: {mesh_path}")
 

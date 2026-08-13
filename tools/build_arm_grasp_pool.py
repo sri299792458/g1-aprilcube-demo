@@ -152,6 +152,7 @@ def build(config_path: Path, hand_side: str) -> dict[str, Any]:
     output_directory = config["physics"].get(
         "qualification_output_directory", "physics_outputs"
     )
+    object_mesh_stem = project_path(config["object"]["mesh"]).stem
     for input_path in input_paths:
         shard_name = input_path.stem
         result_path = (
@@ -161,7 +162,7 @@ def build(config_path: Path, hand_side: str) -> dict[str, Any]:
             / shard_name
             / "grasp_sim_data"
             / f"dex3_rev1_{hand_side}"
-            / "grasp_mesh.yaml"
+            / f"{object_mesh_stem}.yaml"
         )
         if not result_path.is_file():
             raise FileNotFoundError(result_path)

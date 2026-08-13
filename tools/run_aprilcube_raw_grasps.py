@@ -117,7 +117,10 @@ def descriptor_audit(assets: Path, gripper_name: str) -> dict:
 
 
 def sample_centered(mesh_path: Path, count: int, seed: int):
-    mesh = trimesh.load(mesh_path, force="mesh", process=False)
+    # AprilCube's textured OBJ duplicates vertices along UV/normal seams.  Let
+    # trimesh merge those coincident vertices before the watertightness check;
+    # this changes neither the authored surface nor its metric dimensions.
+    mesh = trimesh.load(mesh_path, force="mesh", process=True)
     if not isinstance(mesh, trimesh.Trimesh) or not mesh.is_watertight:
         raise RuntimeError(f"Expected one watertight physical mesh: {mesh_path}")
     np.random.seed(seed)
