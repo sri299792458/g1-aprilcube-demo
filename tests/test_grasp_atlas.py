@@ -10,6 +10,7 @@ import yaml
 
 from tools import build_dex3_isaac_grasp_input as isaac_input
 from tools import build_grasp_atlas as atlas
+from tools import run_isaac_atlas_qualification as qualification
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,24 @@ def test_six_face_centers_map_to_named_regions():
         assert mapped["primary_region"].endswith("/" + face)
         assert mapped["mapping_valid"]
         assert np.allclose(mapped["uv_clamped"], [0.5, 0.5], atol=1e-12)
+
+
+def test_printed_40mm_cuboid_config_maps_all_six_exact_faces():
+    config = atlas.load_config(ROOT / "config/grasp_atlas/cube40_viral_v1.yaml")
+    surface = atlas.build_surface_regions(config)
+
+    assert {region["april_tag_id"] for region in surface["regions"]} == set(range(6))
+    assert {region["face"] for region in surface["regions"]} == {
+        "+X", "-X", "+Y", "-Y", "+Z", "-Z"
+    }
+    for region in surface["regions"]:
+        assert np.isclose(region["basis"]["u_length_m"], 0.04)
+        assert np.isclose(region["basis"]["v_length_m"], 0.04)
+
+
+def test_isaac_result_name_follows_the_configured_mesh_stem(tmp_path):
+    path = qualification.expected_result_path(tmp_path, "right", "cube")
+    assert path == tmp_path / "grasp_sim_data/dex3_rev1_right/cube.yaml"
 
 
 def test_ideal_corner_retains_three_broad_face_labels():

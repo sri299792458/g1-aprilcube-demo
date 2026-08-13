@@ -45,12 +45,14 @@ def parse_shards(value: str, count: int) -> list[int]:
     return result
 
 
-def expected_result_path(run_dir: Path, hand_side: str) -> Path:
+def expected_result_path(
+    run_dir: Path, hand_side: str, object_mesh_stem: str
+) -> Path:
     return (
         run_dir
         / "grasp_sim_data"
         / f"dex3_rev1_{hand_side}"
-        / "grasp_mesh.yaml"
+        / f"{object_mesh_stem}.yaml"
     )
 
 
@@ -182,7 +184,9 @@ def run_shard(
     run_root = artifacts_root / hand_side / output_directory
     run_dir = run_root / f"shard_{shard_index:03d}"
     trace_path = run_root / f"shard_{shard_index:03d}.contact_trace.jsonl"
-    result_path = expected_result_path(run_dir, hand_side)
+    input_document = yaml.safe_load(input_path.read_text())
+    object_mesh_stem = Path(input_document["object_file"]).stem
+    result_path = expected_result_path(run_dir, hand_side, object_mesh_stem)
     log_path = run_dir / "run.log"
     expected_count = max_grasps or int(config["generation"]["batch_size"])
     existing = [path for path in (result_path, trace_path) if path.exists()]
