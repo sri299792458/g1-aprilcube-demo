@@ -3,17 +3,17 @@ observation_id: t_u_cube_shuffled_v1
 stamp: simulation
 planning_frame: world
 table:
-  center: [0.55, 0.0, 0.82]
+  center: [0.55, 0.0, 0.68]
   dimensions: [0.80, 0.80, 0.04]
 objects:
   t_body:
-    # Flat on the opposite broad face: world Rz(-15 deg) * object Rx(-90 deg).
-    translation: [0.40, 0.24, 0.8625]
-    quaternion_xyzw: [-0.7010573846, 0.0922959556, -0.0922959556, 0.7010573846]
+    # The T is moved to the right side so the right hand can become holder.
+    translation: [0.40, -0.25, 0.79]
+    quaternion_xyzw: [0.0, 0.0, -0.1305261922, 0.9914448614]
   u_legs:
-    translation: [0.36, -0.08, 0.8625]
-    quaternion_xyzw: [0.6963642403, 0.1227878040, 0.1227878040, 0.6963642403]
+    # Same qualified upright support, now on the left side.
+    translation: [0.38, 0.05, 0.7675]
+    quaternion_xyzw: [0.0, 0.0, 0.1736481777, 0.9848077530]
   cube_head:
-    # A different stable cube face and in-plane heading.
-    translation: [0.40, -0.30, 0.8625]
-    quaternion_xyzw: [0.1830127019, 0.6830127019, -0.1830127019, 0.6830127019]
+    translation: [0.40, 0.29, 0.7225]
+    quaternion_xyzw: [0.0, 0.0, 0.6087614290, 0.7933533403]

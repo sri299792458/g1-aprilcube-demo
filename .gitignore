@@ -12,3 +12,7 @@ crash_*.txt
 # GraspGenX manages model and gripper assets under ext/. They are large,
 # reproducible external data and must not become project source.
 third_party/GraspGenX/ext/
+
+# External survey checkout with its own 8+ GB environment. It is reference
+# material, not a source dependency of this prototype.
+third_party/lightning-grasp/

@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Research prototype for G1 tabletop AprilCube manipulation"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    # The printable task assets are generated from our pinned AprilCube
+    # checkout; keep its OpenCV/tag rendering dependencies reproducible.
+    "aprilcube",
     # GraspGenX's end-to-end examples use cuRobo's runtime-compiled CUDA
     # backend. Keep the application-level upper bound from GraspGenX rather
     # than cuRobo's broader standalone requirement.
@@ -22,6 +25,7 @@ dependencies = [
     "importlib-resources",
     "newton[sim]==1.0.0",
     "numpy-quaternion",
+    "nvidia-curobo",
     # Pyrender 0.1.17 requires this historical prerelease. Pinning it
     # explicitly avoids enabling prereleases globally.
     "pyglet==1.4.0b1",
@@ -31,7 +35,9 @@ dependencies = [
 ]
 
 [tool.uv.sources]
+aprilcube = { path = "third_party/aprilcube", editable = true }
 graspgenx = { path = "third_party/GraspGenX", editable = true }
+nvidia-curobo = { path = "third_party/GraspGenX/ext/curobo", editable = true }
 
 [tool.uv]
 constraint-dependencies = [

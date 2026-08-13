@@ -21,6 +21,7 @@ parts:
     mesh: generated/aprilcube_parts/u_legs/grasp_mesh.obj
     geometry_config: config/aprilcube_parts/u_legs.yaml
     grasp_pools:
+      left: artifacts/grasp_atlas/u_legs_left_viral_v1/left/arm_grasp_pool.yaml
       right: artifacts/grasp_atlas/u_legs_viral_v1/right/arm_grasp_pool.yaml
     grasp_constraints:
       # Hold a leg so the hip bridge remains clear for the T connection.
@@ -31,6 +32,7 @@ parts:
     mesh: generated/aprilcube_parts/cube_head/grasp_mesh.obj
     geometry_config: config/aprilcube_parts/cube_head.yaml
     grasp_pools:
+      left: artifacts/grasp_atlas/cube_left_viral_v1/left/arm_grasp_pool.yaml
       right: artifacts/grasp_atlas/cube_viral_v1/right/arm_grasp_pool.yaml
     grasp_constraints:
       allowed_cuboids: [head]

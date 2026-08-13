@@ -1,0 +1,28 @@
+shape:
+  type: voxel_cuboids
+  voxel_size_mm: 58.5
+  cuboids:
+    - name: left_leg
+      origin: [0, 0, 0]
+      size: [1, 1, 3]
+    - name: right_leg
+      origin: [2, 0, 0]
+      size: [1, 1, 3]
+    - name: hip_bridge
+      origin: [0, 0, 2]
+      size: [3, 1, 1]
+dictionary: apriltag_36h11
+markers:
+  ids: 64-127
+size:
+  tag_size_mm: 36
+layout:
+  margin_cells: 1
+  border_cells: 1
+geometry:
+  # Hold the existing fillet fixed so voxel scale is the experimental variable.
+  edge_radius_mm: 3
+  edge_segments: 5
+material:
+  extruder: 1
+  invert: false

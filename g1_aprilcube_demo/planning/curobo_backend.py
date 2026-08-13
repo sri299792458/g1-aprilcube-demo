@@ -135,7 +135,12 @@ class CuroboBackend:
         finally:
             bootstrap.destroy()
 
-    def _planner_cfg(self, robot: dict[str, Any], scene: dict[str, Any] | None, max_goalset: int):
+    def _planner_cfg(
+        self,
+        robot: dict[str, Any],
+        scene: dict[str, Any] | None,
+        max_goalset: int,
+    ):
         return self._MotionPlannerCfg.create(
             robot=robot,
             scene_model=scene,
@@ -146,6 +151,7 @@ class CuroboBackend:
             position_tolerance=float(self.options.get("position_tolerance_m", 0.005)),
             orientation_tolerance=float(self.options.get("orientation_tolerance_rad", 0.05)),
             use_cuda_graph=bool(self.options.get("use_cuda_graph", True)),
+            multi_env=False,
         )
 
     def scene(
@@ -370,9 +376,9 @@ class StagePlanner(_PlannerBase):
         contact_links: Sequence[str],
         approach_in_tool_frame: bool = True,
     ) -> PlannedMotion | None:
-        # Make each atlas slice an independent deterministic solver request.
+        # Make each atlas goal set a deterministic solver request.
         # Otherwise RNG state advances with the number of earlier failed
-        # slices and candidate feasibility becomes batch-order dependent.
+        # requests and candidate selection becomes request-order dependent.
         self.planner.reset_seed()
         goal = goal_tool_pose(
             {TOOL[self.side]: world_T_grasps}, self.backend.world_base

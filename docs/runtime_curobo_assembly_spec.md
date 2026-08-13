@@ -1,6 +1,7 @@
 # Runtime AprilCube assembly with upstream cuRobo
 
-Status: implemented and acceptance-tested on 2026-07-22
+Status: native cuRobo lazy goal-set/constraint rewrite in validation on
+2026-07-29
 
 Supersedes as architecture: the fixed-scene policy in
 `g1_aprilcube_demo/planning/assembly_runner.py`
@@ -57,7 +58,7 @@ implementing this replacement, rather than assumed from API names:
   supported. A diagnostic held the left grasp frame fixed and displaced the
   right frame by 40 mm; cuRobo returned one collision-checked 14-joint plan.
 - A native single-hand `plan_grasp` goal set succeeds with the actual T atlas
-  and exact G1 model. Operational batches of 8, 16, and 32 candidates all
+  and exact G1 model. Goal sets of 8, 16, and 32 alternative candidates all
   selected a known reachable candidate.
 - A 48-entry goal set returned no result even when that same reachable
   candidate was its first entry. Therefore 48 is a solver/configuration
@@ -176,25 +177,83 @@ region, and atlas paths. Those concerns must remain in separate files.
 
 ## 6. Candidate policy
 
-The input grasp candidates are exactly the ordinary Isaac/PhysX
-VIRAL-profile passes in the existing arm-grasp-pool files. Atlas transforms
-are immutable.
+Runtime input candidates are the ordinary Isaac/PhysX VIRAL-profile retention
+passes in the exact-side arm-grasp-pool files. Candidate transforms remain
+immutable.
 
-Candidate ordering preserves the atlas's family-balanced ordering. Batching is
-allowed for memory bounds, but batching must not change a candidate transform
-or create a new pose. Neural confidence may be a tie-breaker after planning
-feasibility; it is not a reachability or contact test.
+There is deliberately no project-authored runtime admission test for reach,
+table clearance, hand clearance, or approach feasibility. Such a test would
+duplicate a subset of cuRobo and create two definitions of collision
+feasibility. Instead, every retained candidate is supplied to upstream
+`MotionPlanner.plan_grasp` as an alternative in the observed collision world.
+The candidate selected by cuRobo becomes a value in the task constraint
+domain.
 
-The old approach-ray-to-cuboid classifier is not an admission gate in the
-replacement planner. Connector exposure is tested by exact hand, carried
-object, and composite collision geometry at the future mate stage. This lets
-cuRobo reject obstructing grasps using the geometry that matters instead of a
-project-authored contact heuristic.
+The atlas is partitioned only by the measured 32-pose goal-set capacity. One
+goal set is one trajectory-planning problem with up to 32 alternative grasp
+poses; it is not 32 independent trajectories. In the first lazy round cuRobo
+selects at most one feasible grasp from every goal set. If downstream
+connector constraints reject those selections, each selected grasp is removed
+from its set and the same native planner is asked for another remaining
+alternative. A no-solution result exhausts that set because cuRobo has tested
+the alternatives as part of the same request.
 
-Only hand/object pairs backed by a physics-qualified atlas are eligible. The
-current complete task evidence supports left holder + right worker. The data
-model permits other assignments, but it must not pretend an unqualified
-left-U or left-cube atlas exists.
+This preserves eligibility for every atlas candidate without eagerly planning
+one complete trajectory per candidate. An implementation experiment using
+upstream `BatchMotionPlanner` for independent candidates was rejected: the
+exact G1/Dex3 model supported only eight independent CUDA-graph problems on
+the 24 GB RTX A5500, and evaluating the 1,240-entry left-T pool that way took
+156 seconds. The number eight is therefore diagnostic evidence about the
+wrong architecture, not a limit or configuration parameter in this runtime.
+
+Neural confidence and intrinsic atlas family IDs remain provenance and
+visualization metadata. They do not establish reachability, task suitability,
+or runtime admission.
+
+The supported-pickup experiments remain diagnostic evidence, not a runtime
+admission gate. They are simulator-sensitive and are not hardware
+certification. In particular, the repeated upright U subsets may be used for
+analysis or candidate prioritization, but the implementation deliberately
+uses the same ordinary-retention contract for T, U, and cube.
+
+The completed right-Dex3 supported-pickup runs leave both broad-face U
+libraries empty. The initial 4,096-candidate pool produced 42 geometry-clear
+physics trials and 0 PASS. A bounded 100,000-candidate follow-up produced 983
+geometry-clear physics trials—794 with the broad `-Y` face down and 189 with
+the broad `+Y` face down—and again 0 PASS. Only one trial retained the U after
+lift, and it violated the no-hand/table-contact gate with a 203.1 N peak
+contact. The other 982 still contacted the table in the final hold.
+
+The current runtime must therefore reject an observation in which the U lies
+on either broad face; it may not fall back to an intrinsic grasp, request more
+unconditioned proposals, or ask cuRobo to rescue a physically failed pickup.
+Because task-object placement is under our control, the runtime scene must
+place the U upright on its two leg ends.
+
+The demo therefore uses the U upright on both leg ends. Runtime may vary its
+reachable tabletop XY position and yaw while preserving this orientation.
+This is a task-layout decision after abandoning broad-face pickup, not a claim
+that supported-pickup simulation is universally required.
+
+The old approach-ray-to-cuboid classifier and the later descriptor sweep-box
+experiment are not admission gates in the replacement planner. Connector
+exposure is tested by exact hand, carried-object, and composite collision
+geometry at the future mate stage. This lets cuRobo reject obstructing grasps
+using the geometry that matters instead of a project-authored contact
+heuristic.
+
+Only hand/object pairs backed by a physics-qualified atlas are eligible.
+Both complete role assignments are now backed by exact-side VIRAL-profile
+Isaac/PhysX evidence:
+
+- left holder + right worker uses the 1,240-candidate left-T,
+  675-candidate right-U, and 2,437-candidate right-cube pools;
+- right holder + left worker uses the 1,240-candidate right-T,
+  698-candidate left-U, and 2,428-candidate left-cube pools.
+
+The left U and cube pools reuse the unchanged canonical GraspGenX candidates
+and test them with the exact left Dex3 descriptor and Isaac asset. No
+right-hand PASS verdict is mirrored onto the left hand.
 
 ## 7. Planning model
 
@@ -233,13 +292,30 @@ geometric/reachability evaluator.
 
 The qualification stages are:
 
-1. goal-set-test atlas candidates at each observed pickup pose;
-2. test singleton coupled holder/worker goals for U mating across work-pose
+1. enumerate every holder/worker assignment with a qualified pool for every
+   required pick;
+2. partition each exact-side atlas into native 32-alternative cuRobo goal sets
+   and request one selected pickup from each set;
+3. test singleton coupled holder/worker goals for U mating across work-pose
    samples;
-3. test singleton coupled holder/worker goals for cube mating across work-pose
+4. test singleton coupled holder/worker goals for cube mating across work-pose
    samples;
-4. retain only a T grasp that participates in both a U and a cube mode; and
-5. preserve deterministic atlas/workspace discovery order.
+5. retain only a T grasp that participates in both a U and a cube mode;
+6. if no complete mode exists, remove each selected pickup from its native
+   goal set, request another alternative from every nonempty set, and test
+   only the new exact compatibility edges;
+7. stop only when a complete mode is found or the finite atlas domains are
+   exhausted;
+8. return the first complete satisfying mode for each physical-hand
+   assignment;
+9. plan each returned sequence, including placement; and
+10. choose the successful complete plan with minimum 14-arm-joint arc length.
+
+Euclidean object-to-hand distance is not the assignment rule. It can be a
+search-order hint, but it cannot establish wrist orientation, collision-free
+approach, connector reachability, or placement. The final joint-space cost
+captures the same practical preference for the closer/easier arm after all
+task constraints have been satisfied.
 
 Placement is intentionally not prequalified from a detached endpoint. It
 depends on the actual post-head-mate joint branch and live T+U+cube payload.
@@ -258,7 +334,7 @@ plans from their real states; only those trajectory results are executable.
 
 The paired precontact joint configuration returned by that upstream IK solve
 is retained as part of the mode. Qualification then creates the real
-right-arm-only planner with the left arm locked at those seven joint values
+worker-arm-only planner with the holder arm locked at those seven joint values
 and requires the constrained connector approach to succeed with both payloads
 live. Execution first asks each arm to reach those exact qualified joint
 values. Implementation showed that a paired joint vector can be collision-free
@@ -270,31 +346,38 @@ reached. Thus the cached joint vector is a preferred witness, not a blindly
 replayed trajectory; the object pose, grasp pose, and connector corridor never
 change in the fallback.
 
-Complete qualified modes are cached by a SHA-256 digest over a versioned mode
-qualification contract, the backend/goal/workspace source modules,
+Each complete qualified mode is cached under a SHA-256 digest over a versioned
+constraint contract, the runtime/backend/goal/workspace source modules,
 configuration, observation, task, robot configuration and URDF, both Dex3
-profiles, all three atlas pools, and every part mesh/geometry file. The cache
-stores only candidate identities, work poses, and cuRobo-returned precontact
-joint solutions; it is invalidated automatically when any geometric or
-planning input changes. This avoids repeating minutes of deterministic CUDA
-qualification during rendering/debugging without allowing a stale mode to
-survive a scene, hand-state, robot, part, or atlas edit. Execution still
-replans and collision-checks every trajectory.
+profiles, all atlas pools, and every part mesh/geometry file. A code, scene,
+hand, robot, geometry, planning, or atlas edit selects a different cache
+directory automatically. The run report records every lazy goal-set request
+and selected candidate. Execution still replans and collision-checks every
+trajectory. A connector-qualified mode is provisional until its complete
+sequential plan succeeds. After success, the cache is replaced with only the
+fully executable mode for each role assignment, so an identical future run
+does not repeat a known failed prefix.
 
-The execution-orchestration source is deliberately not hashed wholesale:
-changing report text or a post-release retreat would otherwise force minutes
-of unchanged connector endpoint qualification. Any edit to the qualification
-logic in that file must bump `MODE_CACHE_CONTRACT`; its directly imported
-backend, goal construction, and workspace modules are hashed automatically.
+The outer search is a finite constraint coordinator. It performs no collision
+approximation and has no family, score, candidate, or mode-count cutoff.
+Native cuRobo goal-set selections define the currently exposed values of the
+three discrete grasp domains. Coupled cuRobo endpoint and
+constrained-approach calls lazily establish only those `T × child`
+compatibility edges needed to find a satisfying T/U/cube assignment. Exact
+pair results, including failures, are memoized within the run. If the exposed
+values cannot satisfy the task, the coordinator expands the domains with
+another cuRobo-selected alternative from each remaining goal set.
 
-The first implementation capped the depth-first Cartesian product of
-`T grasp × U grasp × head grasp`. Its first four modes all reused one T and
-one head grasp and changed only the U grasp, so later execution failures did
-not exercise meaningfully different holder geometry. The bounded list now
-takes one complete connector mode per distinct T grasp first; secondary
-U/head alternatives for the same T do not consume the bounded list. This is
-deterministic diversity, not a new geometric heuristic—every retained member
-has already passed the same cuRobo pickup and coupled connector qualification.
+Sequential failures backtrack at their true dependency scope:
+
+- a failed T pickup excludes that T grasp;
+- a failed U pickup or U mate excludes that exact T+U prefix; and
+- a failed head pickup, head mate, or placement excludes the complete
+  T+U+cube mode.
+
+This prevents a cube change from replaying an identical failed U operation.
+It is ordinary constraint-directed backtracking, not a grasp-ranking
+heuristic.
 
 Each coupled mate hypothesis is one two-tool `GoalToolPose` with
 `num_goalset=1`. This ensures the solver evaluates the actual two-arm geometry
@@ -313,9 +396,9 @@ For a selected mode:
 
 #### Pick
 
-1. build `planning_T_G` for all retained candidates;
+1. build `planning_T_G` for the mode's cuRobo-qualified candidate;
 2. call `MotionPlanner.plan_grasp(..., plan_grasp_to_lift=False)`;
-3. use the returned `goalset_index` as the selected atlas identity;
+3. verify the returned singleton `goalset_index`;
 4. append the returned pregrasp and constrained contact trajectories;
 5. append the versioned Dex3 closing profile;
 6. remove only the selected loose object from the collision world;
@@ -397,11 +480,11 @@ attachment transition.
 
 ```text
 loose T,U,cube
-  -> left:T | loose U,cube
-  -> left:T | right:U | loose cube
-  -> left:T+U | loose cube
-  -> left:T+U | right:cube
-  -> left:T+U+cube
+  -> holder:T | loose U,cube
+  -> holder:T | worker:U | loose cube
+  -> holder:T+U | loose cube
+  -> holder:T+U | worker:cube
+  -> holder:T+U+cube
   -> placed:T+U+cube | empty hands
 ```
 
@@ -458,22 +541,22 @@ The new planner configuration contains:
 - rendering/report settings.
 
 `candidate_goalset_size` is 32. This is not a quality heuristic: it is a
-measured safe capacity of the pinned upstream solver. All atlas candidates are
-still eligible and are offered in consecutive deterministic batches until a
-plan succeeds or the pool is exhausted.
+measured safe capacity of the pinned upstream solver. All atlas candidates
+remain in exactly one deterministic goal-set partition until cuRobo either
+selects them or reports that no candidate remaining in that set has a
+solution.
 
 One stage planner is warmed once and reused across consecutive 32-candidate
-batches for a given pickup state. Rebuilding and re-warming an identical CUDA
-planner for every atlas slice changed no planning inputs and dominated runtime;
-reuse preserves the exact upstream candidate decisions while avoiding that
-pure lifecycle cost.
+goal sets for a given pickup state. Rebuilding and re-warming an identical
+CUDA planner for every atlas partition changed no planning inputs and
+dominated runtime; reuse preserves the exact upstream candidate decisions
+while avoiding that pure lifecycle cost.
 
-The upstream planner seed is reset before each independent atlas slice and
-each singleton coupled hypothesis. Without that reset, reusing a planner makes
-the candidate result depend on how many earlier slices consumed its random
-seed stream; rebuilding happened to reset it implicitly. Explicit reset keeps
-planner reuse fast while making every candidate batch reproducible and
-independent of preceding failures.
+The upstream planner seed is reset before each goal-set request and each
+singleton coupled hypothesis. Without that reset, reusing a planner makes the
+candidate result depend on how many earlier requests consumed its random seed
+stream. Explicit reset keeps planner reuse fast while making every request
+reproducible and independent of preceding failures.
 
 Placement samples likewise share one warmed planner because robot state,
 payload, and world are identical until a sample succeeds. Each sample still
@@ -545,3 +628,99 @@ evidence is `docs/assets/t_u_cube_runtime_curobo_v2.mp4`: 408 frames,
 960×720, 24 fps, and 17.0 seconds. Its contact sheet and terminal frame were
 inspected after encoding; the completed object is supported on the U legs and
 both open hands have retreated.
+
+## 14. Lazy goal-set rewrite evidence (2026-07-29)
+
+The native lazy goal-set replacement completed the nominal observation from
+the full exact-side atlases. Its first round submitted 39 left-T, 22 right-U,
+and 77 right-cube goal sets of at most 32 alternatives. cuRobo exposed 18 T,
+10 U, and six cube candidates without eager per-candidate trajectory
+planning.
+
+Constraint-directed backtracking rejected one T+U prefix at U mating and one
+complete triple at cube pickup. It then completed and cached:
+
+```text
+holder  left
+worker  right
+T       t_body__seed_0000000139__sample_125
+U       u_legs__seed_0000000169__sample_077
+cube    cube_head__seed_0000000089__sample_161
+cost    21.63026649245072
+```
+
+A second identical run loaded that one fully executable mode from the
+content-addressed cache and completed all six task-state assertions again.
+The reviewed final artifact is
+`artifacts/runtime_assembly/t_u_cube_v2/nominal_goalset_v10_cached/full_assembly.mp4`:
+408 frames, 960×720, 24 fps, and 17 seconds. The current root suite reports
+`50 passed`.
+
+## 15. Generic pick-and-drop task contract (2026-08-13)
+
+The cube-to-box hardware precursor no longer authors a wrist pose or retries a
+fixed list of wrist yaws. Its configuration declares only the task semantics:
+
+```yaml
+placement_goal:
+  relation: drop_inside
+  target_asset: bin
+  orientation_policy: free_axis_aligned
+  max_candidates: 24
+  containment_margin_m: 0.01
+  release_clearance_above_rim_m: 0.12
+```
+
+These fields are not a robot program. They state that the object must fit over
+the open container, that its orientation is free, and how high above the rim
+the fingers release it. The observed cube pose, selected grasp, arm joints,
+tool pose, and trajectory are runtime results.
+
+For the selected grasp, the planner computes one immutable relation:
+
+```text
+object_T_tool = inverse(world_T_object) * world_T_G * G_T_tool
+```
+
+`placement_goals.py` enumerates the 24 proper axis-aligned object rotations,
+rejects any rotated object that does not fit inside the measured bin opening,
+and places each surviving object pose over the opening. Every object pose is
+converted to a tool goal with:
+
+```text
+world_T_tool_candidate = world_T_object_candidate * object_T_tool
+```
+
+All candidate tool poses enter one upstream cuRobo `plan_pose` goal set.
+cuRobo chooses the reachable orientation and plans the complete payload-aware
+transfer. Project code does not iterate candidates, implement IK, interpolate
+a Cartesian descent, or change the selected grasp.
+
+The procedural bin is represented to cuRobo as five transformed cuboids: one
+floor and four flared walls. The old full-AABB collision representation made
+the open box a solid block and is invalid for placement planning.
+
+What remains task-specific is deliberately small: the relation, target asset,
+allowed orientation policy, containment margin, and release clearance. A new
+task or object changes those declarations and possibly adds a new geometric
+relation generator. It does not require hard-coded arm joints, a manually
+chosen grasp, or a rewritten motion planner.
+
+The validated seed-7 run uses the actual randomized 45 mm cube pose and the
+15-entry executable grasp shortlist. cuRobo selected candidate
+`cube_head__seed_0000000159__sample_170`, the 10 cm approach, and placement
+goal `axis_23_offset_00` from 24 alternatives. Its saved plan contains pick,
+20 cm lift, payload-aware transfer, release, and finger opening. The reviewed
+artifact is `artifacts/cube_to_box/constraint_goalset_v5/review.mp4`.
+
+A second unchanged run at seed 19 moved and yawed the observed cube, selected
+shortlist candidate `...0089...163`, shortened the approach to 7 cm, and
+selected placement goal `axis_14_offset_00`. This confirms that neither the
+cube observation, grasp identity, approach distance, nor placement
+orientation is fixed in task code.
+
+The MP4 is a kinematic planning review. During carry phases the exporter uses
+the exact `world_T_tool * tool_T_object` attachment. After opening, it draws a
+vertical interpolation to the bin floor and labels it as symbolic rather than
+physical evidence. Isaac remains the grasp-retention evidence; the real
+cube-to-box trial remains the next hardware boundary.

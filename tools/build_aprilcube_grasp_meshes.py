@@ -26,8 +26,11 @@ DEFAULT_AUDIT = PROJECT_ROOT / "artifacts/aprilcube_parts/grasp_mesh_audit.json"
 PARTS = {
     "t_body": "t_body.yaml",
     "u_legs": "u_legs.yaml",
+    "u_legs_54mm": "u_legs_54mm.yaml",
+    "u_legs_58p5mm": "u_legs_58p5mm.yaml",
     "cube_head": "cube_head.yaml",
 }
+DEFAULT_PARTS = ("t_body", "u_legs", "cube_head")
 
 
 def sha256(path: Path) -> str:
@@ -117,10 +120,18 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--audit", type=Path, default=DEFAULT_AUDIT)
+    parser.add_argument(
+        "--parts",
+        nargs="+",
+        choices=tuple(PARTS),
+        default=list(DEFAULT_PARTS),
+        help="Named AprilCube specs to export; defaults to the task's 45 mm parts.",
+    )
     args = parser.parse_args()
 
     audit = {"schema_version": 1, "parts": {}}
-    for name, spec_name in PARTS.items():
+    for name in args.parts:
+        spec_name = PARTS[name]
         spec_path = SPEC_ROOT / spec_name
         spec = yaml.safe_load(spec_path.read_text())
         mesh = build_mesh(spec)
