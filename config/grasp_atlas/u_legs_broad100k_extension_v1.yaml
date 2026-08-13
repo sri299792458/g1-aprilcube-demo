@@ -1,0 +1,27 @@
+schema_version: 1
+atlas_id: u_legs_broad100k_extension_v1
+
+object:
+  id: u_legs
+  mesh: generated/aprilcube_parts/u_legs/grasp_mesh.obj
+  aprilcube_config: generated/aprilcube_parts/u_legs/config.json
+  mass_kg: 0.2112813226371547
+  voxel_size_m: 0.045
+  fillet_radius_m: 0.003
+
+generation:
+  checkpoint_dir: third_party/GraspGenX/ext/graspgenx_checkpoints/release
+  descriptor: dex3_rev1_right
+  # Match u_legs_v1 exactly. Only the independent diffusion seeds differ.
+  point_count: 3500
+  point_seed: 19
+  batch_size: 256
+  # 374 * 256 + 160 = 95,904 new candidates. Combined with the immutable
+  # 4,096-candidate u_legs_v1 source, the broad-face experiment has exactly
+  # 100,000 candidates.
+  total_candidate_count: 95904
+  seeds: {start: 1000019, step: 10, count: 375}
+  grasp_threshold: -1.0
+  remove_outliers: false
+
+artifacts_root: artifacts/grasp_atlas/u_legs_broad100k_extension_v1

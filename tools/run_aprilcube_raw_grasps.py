@@ -34,7 +34,14 @@ from graspgenx.utils.checkpoint_io import load_model_cfg  # noqa: E402
 DEFAULT_ASSETS = GRASPGENX_ROOT / "assets"
 DEFAULT_PARTS = PROJECT_ROOT / "generated/aprilcube_parts"
 DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts/aprilcube_raw_grasps"
-PARTS = ("t_body", "u_legs", "cube_head")
+PARTS = (
+    "t_body",
+    "u_legs",
+    "u_legs_54mm",
+    "u_legs_58p5mm",
+    "cube_head",
+)
+DEFAULT_PARTS = ("t_body", "u_legs", "cube_head")
 CHECKPOINT_COMMIT = "7c834043c11a11417e31d6d5ea9355801e40a2c1"
 
 
@@ -143,6 +150,54 @@ def candidate_content_hash(
     )
 
 
+def configured_seeds(generation_cfg: dict) -> list[int]:
+    """Expand an explicit seed list or a compact arithmetic seed schedule."""
+
+    value = generation_cfg["seeds"]
+    if isinstance(value, list):
+        seeds = [int(seed) for seed in value]
+    elif isinstance(value, dict):
+        start = int(value["start"])
+        step = int(value["step"])
+        count = int(value["count"])
+        if step == 0:
+            raise ValueError("Atlas generation seed step must be nonzero")
+        if count <= 0:
+            raise ValueError("Atlas generation seed count must be positive")
+        seeds = [start + step * index for index in range(count)]
+    else:
+        raise TypeError("generation.seeds must be a list or schedule mapping")
+    if len(seeds) != len(set(seeds)):
+        raise ValueError("Atlas generation seeds must be unique")
+    return seeds
+
+
+def configured_batch_counts(
+    generation_cfg: dict, seeds: list[int]
+) -> list[int]:
+    """Return a per-seed count, allowing one resumable partial final shard."""
+
+    batch_size = int(generation_cfg["batch_size"])
+    if batch_size <= 0:
+        raise ValueError("Atlas generation batch size must be positive")
+    capacity = batch_size * len(seeds)
+    total = int(generation_cfg.get("total_candidate_count", capacity))
+    if total <= 0 or total > capacity:
+        raise ValueError(
+            "generation.total_candidate_count must be within the configured "
+            f"seed capacity [1, {capacity}], received {total}"
+        )
+    required_batches = (total + batch_size - 1) // batch_size
+    if required_batches != len(seeds):
+        raise ValueError(
+            "The seed schedule must contain exactly ceil(total_candidate_count / "
+            f"batch_size)={required_batches} seeds, received {len(seeds)}"
+        )
+    counts = [batch_size] * len(seeds)
+    counts[-1] = total - batch_size * (len(seeds) - 1)
+    return counts
+
+
 def run_atlas(args: argparse.Namespace) -> None:
     config_path = args.atlas_config.resolve()
     config = yaml.safe_load(config_path.read_text())
@@ -192,15 +247,23 @@ def run_atlas(args: argparse.Namespace) -> None:
         assets_dir=str(assets_dir),
     )
 
-    seeds = [int(value) for value in generation_cfg["seeds"]]
-    if len(seeds) != len(set(seeds)):
-        raise ValueError("Atlas generation seeds must be unique")
+    seeds = configured_seeds(generation_cfg)
+    batch_counts = configured_batch_counts(generation_cfg, seeds)
     if args.batch_index is not None:
         if not 0 <= args.batch_index < len(seeds):
             raise IndexError(f"--batch-index outside [0, {len(seeds) - 1}]")
-        selected_batches = [(args.batch_index, seeds[args.batch_index])]
+        selected_batches = [
+            (
+                args.batch_index,
+                seeds[args.batch_index],
+                batch_counts[args.batch_index],
+            )
+        ]
     else:
-        selected_batches = list(enumerate(seeds))
+        selected_batches = [
+            (index, seed, batch_counts[index])
+            for index, seed in enumerate(seeds)
+        ]
         if args.max_batches:
             selected_batches = selected_batches[: args.max_batches]
 
@@ -225,11 +288,15 @@ def run_atlas(args: argparse.Namespace) -> None:
         "point_seed": point_seed,
         "point_cloud_sha256": point_cloud_sha,
         "batch_size": batch_size,
+        "configured_batch_counts": batch_counts,
+        "configured_candidate_count": sum(batch_counts),
         "configured_seeds": seeds,
         "batches": [],
     }
 
-    def load_matching_provenance(batch_index: int, seed: int) -> dict | None:
+    def load_matching_provenance(
+        batch_index: int, seed: int, candidate_count: int
+    ) -> dict | None:
         output_path = output_root / f"shard_{batch_index:03d}.yaml"
         provenance_path = output_root / f"shard_{batch_index:03d}.provenance.json"
         if not output_path.exists() and not provenance_path.exists():
@@ -241,7 +308,7 @@ def run_atlas(args: argparse.Namespace) -> None:
             raise RuntimeError(f"Existing shard {batch_index:03d} is not complete")
         expected = {
             "seed": seed,
-            "candidates": batch_size,
+            "candidates": candidate_count,
             "object_mesh_sha256": mesh_sha,
             "descriptor_sha256": descriptor_sha,
             "point_cloud_sha256": point_cloud_sha,
@@ -258,10 +325,12 @@ def run_atlas(args: argparse.Namespace) -> None:
             )
         return provenance
 
-    for batch_index, seed in selected_batches:
+    for batch_index, seed, candidate_count in selected_batches:
         output_path = output_root / f"shard_{batch_index:03d}.yaml"
         provenance_path = output_root / f"shard_{batch_index:03d}.provenance.json"
-        provenance = load_matching_provenance(batch_index, seed)
+        provenance = load_matching_provenance(
+            batch_index, seed, candidate_count
+        )
         if provenance is not None:
             print(f"shard {batch_index:03d}: complete and matching; skipped")
             continue
@@ -273,15 +342,15 @@ def run_atlas(args: argparse.Namespace) -> None:
             centered_points,
             sampler,
             grasp_threshold=float(generation_cfg["grasp_threshold"]),
-            num_grasps=batch_size,
-            topk_num_grasps=batch_size,
-            min_grasps=batch_size,
+            num_grasps=candidate_count,
+            topk_num_grasps=candidate_count,
+            min_grasps=candidate_count,
             max_tries=1,
             remove_outliers=bool(generation_cfg["remove_outliers"]),
         )
-        if len(grasps) != batch_size:
+        if len(grasps) != candidate_count:
             raise RuntimeError(
-                f"Expected {batch_size} candidates in shard {batch_index:03d}, "
+                f"Expected {candidate_count} candidates in shard {batch_index:03d}, "
                 f"received {len(grasps)}"
             )
         grasp_array = grasps.detach().cpu().numpy()
@@ -348,13 +417,21 @@ def run_atlas(args: argparse.Namespace) -> None:
     generation_manifest["batches"] = [
         provenance
         for batch_index, seed in enumerate(seeds)
-        if (provenance := load_matching_provenance(batch_index, seed)) is not None
+        if (
+            provenance := load_matching_provenance(
+                batch_index, seed, batch_counts[batch_index]
+            )
+        )
+        is not None
     ]
     generation_manifest["completed_batch_count"] = len(
         generation_manifest["batches"]
     )
     generation_manifest["complete"] = (
         generation_manifest["completed_batch_count"] == len(seeds)
+    )
+    generation_manifest["completed_candidate_count"] = sum(
+        int(batch["candidates"]) for batch in generation_manifest["batches"]
     )
     manifest_path = output_root / "generation_manifest.json"
     atomic_write_text(manifest_path, json.dumps(generation_manifest, indent=2) + "\n")
@@ -390,7 +467,7 @@ def main() -> None:
         "--parts",
         nargs="+",
         choices=PARTS,
-        default=list(PARTS),
+        default=list(DEFAULT_PARTS),
         help="AprilCube parts to process; their deterministic seeds remain fixed.",
     )
     parser.add_argument("--seed", type=int, default=17)

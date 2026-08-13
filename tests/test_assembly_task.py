@@ -67,17 +67,15 @@ def test_mating_transforms_are_exact_and_final_height_is_360_mm():
     )
 
 
-def test_readiness_selects_left_holder_and_right_worker():
+def test_readiness_exposes_both_complete_role_assignments():
     report = load_assembly_task(TASK_PATH).readiness_report()
     assert report["motion_planning_ready"]
     assignments = {
         tuple(sorted(item["role_to_hand"].items())): item for item in report["assignments"]
     }
     right_holder = assignments[(('holder', 'right'), ('worker', 'left'))]
-    assert {item["part"] for item in right_holder["missing_grasp_pools"]} == {
-        "u_legs",
-        "cube_head",
-    }
+    assert right_holder["ready"]
+    assert right_holder["missing_grasp_pools"] == []
     left_holder = assignments[(('holder', 'left'), ('worker', 'right'))]
     assert left_holder["ready"]
     assert left_holder["missing_grasp_pools"] == []

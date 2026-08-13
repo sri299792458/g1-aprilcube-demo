@@ -17,13 +17,28 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "generated/aprilcube_parts"
 PARTS = {
     "t_body": "t_body.yaml",
     "u_legs": "u_legs.yaml",
+    "u_legs_54mm": "u_legs_54mm.yaml",
+    "u_legs_58p5mm": "u_legs_58p5mm.yaml",
     "cube_head": "cube_head.yaml",
 }
+DEFAULT_PARTS = ("t_body", "u_legs", "cube_head")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--parts",
+        nargs="+",
+        choices=tuple(PARTS),
+        default=list(DEFAULT_PARTS),
+        help="Named AprilCube specs to generate; defaults to the task's 45 mm parts.",
+    )
+    parser.add_argument(
+        "--audit",
+        type=Path,
+        default=PROJECT_ROOT / "artifacts/aprilcube_parts/audit.json",
+    )
     args = parser.parse_args()
 
     env = os.environ.copy()
@@ -32,7 +47,8 @@ def main() -> None:
         os.pathsep + old_pythonpath if old_pythonpath else ""
     )
     audit = {"schema_version": 1, "parts": {}}
-    for name, spec_name in PARTS.items():
+    for name in args.parts:
+        spec_name = PARTS[name]
         spec = SPEC_ROOT / spec_name
         destination = args.output_root / name
         command = [
@@ -68,7 +84,7 @@ def main() -> None:
             "tag_ids": config["tag_ids"],
         }
 
-    audit_path = PROJECT_ROOT / "artifacts/aprilcube_parts/audit.json"
+    audit_path = args.audit.resolve()
     audit_path.parent.mkdir(parents=True, exist_ok=True)
     audit_path.write_text(json.dumps(audit, indent=2) + "\n")
     print(f"audit: {audit_path}")

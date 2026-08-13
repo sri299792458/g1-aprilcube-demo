@@ -1,9 +1,290 @@
 # Dex3–AprilCube grasp atlas: implementation specification
 
-Status: full right-hand cube/T/U production atlases and sequential MP4s complete; user visual review pending
+Status: upright U has 365 twice-passing candidates; broad-face U has 0/983 PASS after a 100K raw-candidate test
 Scope owner: G1 AprilCube demo
 Objects: 45 mm-voxel `cube_head`, `t_body`, and `u_legs`
 Current hand scope: current official Unitree Dex3-1 right; left explicitly deferred
+
+## 0A. 2026-08-13 correction: runtime uses an executable shortlist, not families
+
+The intrinsic atlas and its coarse contact families remain useful offline
+evidence, but they are not a runtime grasp-selection policy. The first
+cube-to-box prototype sent as many as 240 retention-pass candidates to cuRobo
+in family-balanced order. That confused two separate questions:
+
+1. **Can the hand establish and retain this grasp without badly rearranging
+   the object?**
+2. **Can the arm reach that already-acceptable grasp through the current
+   collision scene?**
+
+cuRobo answers the second question. It does not score Dex3 contact quality,
+object motion during closure, or how convincing the resulting grasp looks.
+The old run therefore selected a motion-reachable candidate whose Isaac trace
+moved the 45 mm cube by 28.3 mm and rotated it by 50.7 degrees during closure.
+Its apparent success came only after the object was rearranged and caught
+during the later disturbance sequence. That candidate is not executable for
+the cube-pick milestone even though it passed the broad retention test.
+
+The corrected cube boundary is:
+
+```text
+2,437 intrinsic right-hand retention passes
+    -> immutable candidate/provenance match
+    -> exact open Dex3/cube non-intersection
+    -> exact open Dex3/table clearance at grasp and pregrasp
+    -> exact closed-before-tug Dex3/table clearance
+    -> reconstructed closed cube/table nonpenetration
+    -> thumb + opposing-digit body contact immediately after closure
+    -> cube translation during closure <= 22.5 mm
+    -> cube rotation during closure <= 45 degrees
+    -> 15 execution-qualified candidates
+    -> one cuRobo goal set
+```
+
+The two pose-change bounds are explicit coarse task semantics rather than
+learned quality scores:
+
+- 22.5 mm is half the cube's smallest 45 mm extent. Crossing it means the
+  object's center has left its original half-width neighborhood.
+- 45 degrees is half the 90-degree interval between adjacent cube-face
+  orientations. Crossing it makes the final cube face assignment ambiguous.
+
+The contact magnitude threshold is only `1e-6 N`, used to distinguish a
+reported body contact from numerical zero. Contact force is not ranked. The
+open and closed table checks use exact descriptor collision meshes. The
+straight local-Z approach check uses the complete descriptor visual geometry;
+because the approach is a pure translation, endpoint plane clearance proves
+clearance for every point along the segment.
+
+The Isaac trace stores `object_T_G` at each phase while `world_T_G` remains
+fixed. It does not store a changing world hand pose. The closed cube pose is
+therefore reconstructed as:
+
+```text
+world_T_object_after_close =
+    initial_object_T_G @ inverse(closed_object_T_G)
+```
+
+Object displacement, rotation, and moved-cube/table clearance are computed
+from that reconstructed pose. Closed-hand/table clearance uses the unchanged
+initial `world_T_G` together with the recorded closed finger joints. A prior
+draft incorrectly treated `closed_object_T_G` as a world hand pose; its
+provisional seven-candidate result was discarded before finalizing this
+contract.
+
+No pose is generated, averaged, corrected, or clustered by this stage. All
+15 output `object_T_G` transforms are copied unchanged from GraspGenX. The
+serialization order is deterministic for inspection only. At runtime all
+15 enter one cuRobo goal set simultaneously, and cuRobo selects only by arm
+reachability and collision-aware motion feasibility.
+
+Machine-readable contract and evidence:
+
+- `config/grasp_shortlists/cube_right_executable_v1.yaml`;
+- `artifacts/grasp_shortlists/cube_right_executable_v1/shortlist.yaml`; and
+- `artifacts/grasp_shortlists/cube_right_executable_v1/visual/contact_sheet.png`.
+
+The seed-7 right-arm scene selected shortlist member
+`cube_head__seed_0000000159__sample_170`. Its recorded closure moved the cube
+12.16 mm and 16.47 degrees, established thumb/middle contact, left 23.81 mm
+of exact closed-hand table clearance, and left the moved cube 3.63 mm above
+the support plane. Warm grasp planning took 0.547 seconds. Planner construction
+and CUDA warmup varied from 5.6 to 14.1 seconds across the measured fresh
+processes and therefore belong at process startup, not inside each perception
+update.
+
+The corrected run currently establishes collision-aware pick and 20 cm lift.
+The subsequent box-transfer pose is a separate unresolved planning problem:
+all configured transport-yaw variants failed for the current box placement.
+The runtime must not describe that fallback as a complete cube-to-box plan.
+
+## 0. 2026-07-25 correction: a tabletop grasp is support-conditioned
+
+The original v1 atlas answered a free-space question: can an isolated Dex3
+retain an unsupported object after closure and tugs? It did not establish that
+the open hand starts outside the target, clears a supporting table, or can
+approach the same pose while the object remains in its initial support.
+
+The first runtime audit exposed two related defects:
+
+1. the U qualification admitted trials without an explicit initial
+   hand–target nonpenetration gate; and
+2. runtime treated one broad-face placement as though it represented the
+   graspability of the whole U.
+
+The 675 legacy U passes and their 28 coarse contact families therefore remain
+inspectable historical evidence, but they are not admissible runtime pickup
+grasps. They must not seed cuRobo until they pass the replacement
+support-conditioned physics path.
+
+The replacement order is:
+
+```text
+4,096 immutable raw GraspGenX object_T_G proposals
+    × six explicit U tabletop supports
+    -> exact open-hand/table clearance at final and pregrasp
+    -> exact open-hand/U clearance at final and pregrasp
+    -> complete sampled straight local-Z approach corridor
+    -> proposal buckets by support + U region + surface + approach
+    -> corrected table-supported Isaac closure/lift/hold test
+    -> final families from support semantics + measured hand contacts
+    -> explicit per-family iteration in cuRobo
+```
+
+The U is a known axis-aligned 3×1×3 voxel part. Stable support discovery is
+therefore configuration, not an inference problem:
+
+| Table-up axis in object frame | Physical support | Symmetry class |
+|---|---|---|
+| `+X` | left outer leg face | outer-leg side |
+| `-X` | right outer leg face | outer-leg side |
+| `+Y` | broad `-Y` face | broad face |
+| `-Y` | broad `+Y` face | broad face |
+| `+Z` | two leg ends | leg ends |
+| `-Z` | hip bridge | hip bridge |
+
+The two members of a symmetry class remain distinct because AprilTags can
+distinguish them in the real scene. Absolute table height, tabletop XY, and
+in-plane yaw do not affect object-relative hand/table clearance; those enter
+later as G1 reachability variables.
+
+The first deterministic geometry pass checked all 24,576 candidate/support
+pairs and retained 6,630:
+
+| Support | Survivors |
+|---|---:|
+| left outer leg down | 1,691 |
+| right outer leg down | 1,496 |
+| broad `-Y` face down | 33 |
+| broad `+Y` face down | 9 |
+| upright on leg ends | 1,837 |
+| inverted on hip bridge | 1,564 |
+
+These are only geometry-clear proposals, not successful grasps. No member is
+ranked or removed within the 164 pre-physics buckets. The machine-readable
+ledger is generated by `tools/build_support_conditioned_grasp_atlas.py`; the
+human audit and exact-support render are
+`docs/u_legs_support_conditioned_grasp_audit.md` and
+`docs/assets/u_legs_six_tabletop_supports.png`.
+
+### Broad-face supported-pickup result
+
+All 42 geometry-clear proposals from the two broad-face supports were then
+executed in the table-supported Isaac/PhysX test:
+
+- the exact U first settled under gravity on a 1 m square table;
+- the exact open right Dex3 moved from the stored pregrasp to the unchanged
+  GraspGenX `G` pose;
+- the VIRAL-profile finger controller closed;
+- the hand root rose 20 cm over four seconds; and
+- physics continued for a one-second final hold.
+
+A pass required at least two digit chains still contacting the U, no hand link
+ever contacting the table, and no U/table contact during the final hold.
+The measured result was **0/42 PASS**:
+
+| Broad-face support | Trials | Final digit-contact pass | Full PASS |
+|---|---:|---:|---:|
+| broad `-Y` face down | 33 | 0 | 0 |
+| broad `+Y` face down | 9 | 0 | 0 |
+
+Fourteen approaches also contacted the table. All 42 U parts were again
+supported by the table in the final hold; their measured table-contact force
+was 2.070–2.079 N. The commanded hand lift and final orientation were verified
+from independent world-frame phase poses with zero recorded command error.
+
+The exact result ledger is
+`artifacts/grasp_support/u_legs_right_broad_face_isaac_v1/report.json`; the
+complete sequential review is
+`docs/assets/dex3_u_broad_face_supported_pickup_all42.mp4`, summarized in
+`docs/u_legs_broad_face_supported_pickup.md`.
+
+Therefore the replacement right-U library contains no broad-face member from
+the current 4,096 raw proposals. Runtime must not seed cuRobo with these flat-U
+poses. This result is scoped to the current proposal set, right Dex3,
+descriptor-local straight approach, and controller profile; it is not a claim
+that every possible flat-U strategy is physically impossible.
+
+#### Bounded 100K broad-face follow-up
+
+Because 42 physical trials were too few to rule out a rare broad-face proposal,
+one controlled larger-sample experiment was run before abandoning that
+placement. It kept all original 4,096 transforms and generated 95,904 new
+diffusion candidates from 375 non-overlapping seeds:
+
+```text
+4,096 preserved candidates + 95,904 new candidates = 100,000
+100,000 candidates × two broad-face supports = 200,000 support trials
+200,000 exact geometric trials -> 983 Isaac pickup trials
+983 Isaac pickup trials -> 0 PASS
+```
+
+The extension used exactly the original U mesh, current-right-Dex3 descriptor,
+generator/discriminator checkpoints, sampled point cloud, thresholds, and
+outlier policy. All 100,000 candidate IDs, content hashes, and numerical
+transforms are unique. The approach sectors cover all six signed object axes.
+The geometry gate retained 794 candidates for the broad `-Y` face and 189 for
+the broad `+Y` face, distributed over 85 proposal buckets.
+
+Isaac measured:
+
+| Gate | Count |
+|---|---:|
+| Physics trials | 983 |
+| At least two final digit chains | 1 |
+| Any hand/table contact | 340 |
+| U/table contact in final hold | 982 |
+| Full PASS | 0 |
+
+The sole retention trial contacted the table with the hand and recorded a
+203.1 N peak hand/table force, so it is not admissible. With no PASS set, there
+is nothing to replay. This is the stopping condition for unconditioned
+GraspGenX sampling on a broad-face U: increasing the raw pool 24.4× increased
+the physical trial set from 42 to 983 but did not produce one valid pickup.
+
+The immutable extension and geometry configurations are
+`config/grasp_atlas/u_legs_broad100k_extension_v1.yaml` and
+`config/grasp_support/u_legs_right_broad100k_v1.yaml`. Readable results are
+`docs/u_legs_broad100k_support_conditioned_grasp_audit.md` and
+`docs/u_legs_broad100k_supported_pickup.md`. The compact ten-trial diagnostic,
+including the retention/table-collision near-miss, is
+`docs/assets/dex3_u_broad100k_supported_pickup_review10.mp4`.
+
+### Upright-on-leg-ends supported-pickup result
+
+The same unchanged physical contract was applied to all 1,837 geometry-clear
+proposals for the U standing upright on both leg ends. The discovery run, in
+256-environment batches, produced **405 PASS**. Every one of those 405 was then
+replayed under a different 64-environment layout:
+
+| Gate | Input | PASS |
+|---|---:|---:|
+| Upright discovery | 1,837 | 405 |
+| Exhaustive replay of discovery passes | 405 | 365 |
+
+The 40 non-reproducing discoveries are excluded. The 365 twice-passing records
+cover the hip bridge (149), left leg (147), and right leg (69), five approach
+sectors, and 14 proposal buckets. This is now the support-conditioned
+right-Dex3 U library eligible for later cuRobo reachability and connector
+compatibility checks.
+
+For human review, the highest-score twice-passing member of each bucket was
+executed a third time with Isaac cameras enabled. Thirteen of 14 lifted and
+held the U again; the one failed segment remains preserved in the complete
+review. The readable pass-only sequence is
+`docs/assets/dex3_u_upright_supported_pickup_review13_passes.mp4`.
+
+The exhaustive ledgers are
+`artifacts/grasp_support/u_legs_right_upright_isaac_v1/report.json` and
+`artifacts/grasp_support/u_legs_right_upright_replay1_isaac_v1/report.json`.
+The readable summaries are `docs/u_legs_upright_supported_pickup.md` and
+`docs/u_legs_upright_supported_pickup_replay1.md`.
+
+For the replacement final U library, the family key must include the support
+orientation, semantic U component (`left_leg`, `right_leg`, or `hip_bridge`),
+surface/cavity relation, approach sector, and the measured post-lift
+digit/palm participation. The semantic ray label before physics is only a
+proposal-bucket label; it is not a claim about actual finger contact.
 
 ## 1. Decision
 
@@ -42,8 +323,11 @@ contact signatures and grasp families
 sequential MP4 + machine-readable representatives
 ```
 
-No OBB grasps, hand-written grasp poses, render-based closure tests, table,
-robot arm, cuRobo, or assembly logic belongs in this milestone.
+No OBB grasps, hand-written grasp poses, render-based closure tests, robot arm,
+cuRobo, or assembly logic belongs in the intrinsic-atlas milestone. The
+replacement support-conditioned admission stage adds only the supporting table
+and prescribed approach/lift needed to answer whether an intrinsic proposal is
+a real pickup from a named support.
 
 ## 2. Why the implementation started with the cube
 

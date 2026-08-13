@@ -27,10 +27,13 @@ ROS 2 bridge   executes approved trajectories on hardware later
 6. The complete object is placed, detached from the holder, and restored to
    the world collision model.
 
-The current readiness check selects the left hand as holder and the right hand
-as worker because that is the qualified-pool combination available now. Every
-selected candidate must be reachable at its pickup and its future mating pose;
-the assignment can be changed when the corresponding pools are available.
+The readiness check now exposes both complete assignments: left holder/right
+worker and right holder/left worker. Each assignment uses separately
+VIRAL-profile ordinary-retention pools for the exact physical hand. The
+runtime plans complete sequences for all arm-reachable assignments and chooses
+the one with the lowest 14-arm-joint arc length. Raw object distance does not
+decide the arm because it cannot test approach, collision, connector, or
+placement feasibility.
 
 ## Verified cuRoboV2 contract
 
