@@ -3114,3 +3114,72 @@ references the exact 40 mm mesh hash, records a 20 mm maximum closure
 translation (half the actual cube width), contains 15 unique immutable
 `object_T_G` candidates, and supersedes the 45 mm shortlist at the same
 runtime path.
+
+## 2026-08-14 — sparse PLA presenter for the first physical cube pick
+
+The direct tabletop shortlist has only 15 executable right-hand grasps even
+though 3,178 poses passed the ordinary VIRAL-profile Isaac retention test. An
+exact height sweep showed that this loss is primarily support/table clearance:
+an ideal zero-footprint support at 50 mm admits 556 candidates before accounting
+for the real fixture. For the first cube-to-box milestone, changing the part
+presentation is therefore simpler and less brittle than adding a push-to-edge
+or other pre-grasp manipulation skill.
+
+The selected fixture is a single-piece sparse tripod, not a cup or broad top
+platform. Three independent 5.5 mm angled legs rise from a 72 x 4 mm tapeable
+base and terminate at three 4 mm pads on a 14 mm radius. Their top surfaces are
+coplanar at 50 mm. Three contacts define the support plane without the rocking
+risk of a four-pad crown, while the empty volume between the legs preserves
+finger access. No magnets, side walls, recess, or soft pads are included.
+
+The parametric source is `config/fixtures/cube_tripod_presenter.yaml` and the
+builder is `tools/build_cube_tripod_presenter.py`. The released local print
+files are under `hardware/fixtures/cube_tripod_presenter/`. The builder performs
+a Manifold Boolean union and rejects the result unless it is one positive,
+watertight, consistently wound component with exact 72 x 72 x 50 mm bounds. It
+also reloads the 3MF and STL to verify scale and topology and checks that the
+3MF explicitly declares millimetre units. This fixture remains a presentation
+aid; it does not replace AprilTag pose measurement or collision-aware planning.
+
+The H2D bed is large enough to print a controlled height comparison in one
+job. The builder therefore also exports a 252 x 72 x 60 mm three-object plate
+with 40, 50, and 60 mm support heights from left to right and 18 mm between
+the 72 mm bases. All other geometry is identical. The earlier ideal-support
+audit admitted 402, 556, and 731 candidates at those respective heights, so
+the three prints span a useful clearance range while allowing the physical
+test to reveal the opposing stiffness and stability trade-off. Individual 3MF
+and STL files remain available for selective reprints.
+
+## 2026-08-14 — exact tripod-conditioned right-hand grasp sets
+
+The ideal zero-footprint height counts above were design ceilings, not valid
+counts for the printed fixtures. The exact 40, 50, and 60 mm STL meshes are now
+part of the offline qualification contract. The implementation starts from the
+same 3,178 immutable VIRAL-profile Isaac retention passes and reuses the
+existing open-hand/object, digit-contact, closure-motion, and table gates. It
+then continuously checks the descriptor-open hand along each local-Z approach
+against the tripod plus a 60 cm tabletop, and checks the recorded open-to-closed
+Dex3 joint motion in 12 continuous-collision segments using the exact current
+URDF collision geometry. Intentional cube-to-pad contact is not treated as a
+failure.
+
+The runtime already tries 15, 10, and 7 cm pregrasp distances, so a candidate
+is retained when at least one of those complete corridors is clear. For the
+centred, yaw-aligned cube support condition, the deterministic results are:
+
+| Tripod | Any runtime approach | 15 cm | 10 cm | 7 cm |
+|---|---:|---:|---:|---:|
+| 40 mm | 324 | 275 | 306 | 324 |
+| 50 mm | 372 | 353 | 365 | 372 |
+| 60 mm | 394 | 377 | 384 | 394 |
+
+The gain from 50 to 60 mm is only 22 union candidates because the taller legs
+also intersect more closing-hand sweeps; clearance does not improve
+monotonically once the real fixture is included. These remain end-effector
+proposal sets, not arm-reachability guarantees. Runtime AprilTag localization,
+the exact measured cube/fixture relation, and full-scene cuRobo checking remain
+mandatory. The outputs are
+`artifacts/grasp_shortlists/cube_tripod_right_v1/{h40,h50,h60}/shortlist.yaml`;
+the configuration and builder are
+`config/grasp_shortlists/cube_tripod_right_v1.yaml` and
+`tools/build_fixture_grasp_shortlists.py`.

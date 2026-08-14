@@ -1,0 +1,318 @@
+{
+  "contact_centres_mm": [
+    [
+      8.572527594031472e-16,
+      14.0,
+      50.0
+    ],
+    [
+      -12.12435565298214,
+      -7.000000000000002,
+      50.0
+    ],
+    [
+      12.124355652982137,
+      -7.000000000000006,
+      50.0
+    ]
+  ],
+  "contact_plane_z_mm": 50.0,
+  "contact_triangle_inradius_mm": 7.0,
+  "leg_lean_from_vertical_deg": 13.309178695400478,
+  "bounds_mm": [
+    [
+      -36.0,
+      -36.0,
+      0.0
+    ],
+    [
+      36.0,
+      36.0,
+      50.0
+    ]
+  ],
+  "extents_mm": [
+    72.0,
+    72.0,
+    50.0
+  ],
+  "vertices": 1028,
+  "triangles": 2052,
+  "connected_components": 1,
+  "watertight": true,
+  "winding_consistent": true,
+  "volume_mm3": 19586.1950483463,
+  "full_solid_pla_mass_g": 24.286881859949414,
+  "schema_version": 1,
+  "design_spec": "config/fixtures/cube_tripod_presenter.yaml",
+  "design_spec_sha256": "e264c7111f45f0d884cabf67627e0433403ba3db2df8508ff0954514ca1b6ea9",
+  "exports": {
+    "3mf": {
+      "sha256": "5d0f97d95681aa5dc65bcc71e7cc1bc3f476c5b540b58c9347fd529471f51ec7",
+      "bytes": 28925,
+      "watertight": true,
+      "connected_components": 1,
+      "extents_mm": [
+        72.0,
+        72.0,
+        50.0
+      ]
+    },
+    "stl": {
+      "sha256": "2da7c59130b78a777fdb85b1aef5d3291adccb990bf7a75ca32bb30066eaade2",
+      "bytes": 102684,
+      "watertight": true,
+      "connected_components": 1,
+      "extents_mm": [
+        72.0,
+        72.0,
+        50.0
+      ]
+    }
+  },
+  "height_test": {
+    "variant_order_left_to_right_mm": [
+      40.0,
+      50.0,
+      60.0
+    ],
+    "plate_centre_spacing_mm": 90.0,
+    "plate_extents_mm": [
+      252.0,
+      72.0,
+      60.0
+    ],
+    "plate_3mf": {
+      "sha256": "00cf6e4f617c9de7593f145580b164897224f06bc67cd8979bb2af6894156ecb",
+      "bytes": 82924,
+      "watertight": true,
+      "connected_components": 3,
+      "extents_mm": [
+        252.0,
+        72.0,
+        60.0
+      ]
+    },
+    "variants": {
+      "40": {
+        "support_height_mm": 40.0,
+        "geometry": {
+          "contact_centres_mm": [
+            [
+              8.572527594031472e-16,
+              14.0,
+              40.0
+            ],
+            [
+              -12.12435565298214,
+              -7.000000000000002,
+              40.0
+            ],
+            [
+              12.124355652982137,
+              -7.000000000000006,
+              40.0
+            ]
+          ],
+          "contact_plane_z_mm": 40.0,
+          "contact_triangle_inradius_mm": 7.0,
+          "leg_lean_from_vertical_deg": 16.77122381863042,
+          "bounds_mm": [
+            [
+              -36.0,
+              -36.0,
+              0.0
+            ],
+            [
+              36.0,
+              36.0,
+              40.0
+            ]
+          ],
+          "extents_mm": [
+            72.0,
+            72.0,
+            40.0
+          ],
+          "vertices": 1028,
+          "triangles": 2052,
+          "connected_components": 1,
+          "watertight": true,
+          "winding_consistent": true,
+          "volume_mm3": 18895.224397434296,
+          "full_solid_pla_mass_g": 23.43007825281853
+        },
+        "exports": {
+          "3mf": {
+            "sha256": "4b4f305ceb721b0d822cc217915394f831afeab5cbceb45c73b5c434aa1b688a",
+            "bytes": 28871,
+            "watertight": true,
+            "connected_components": 1,
+            "extents_mm": [
+              72.0,
+              72.0,
+              40.0
+            ]
+          },
+          "stl": {
+            "sha256": "867a33220edd72b12c7e58441caae20ea5c16fb262c582ede6fb8f54144cfb69",
+            "bytes": 102684,
+            "watertight": true,
+            "connected_components": 1,
+            "extents_mm": [
+              72.0,
+              72.0,
+              40.0
+            ]
+          }
+        }
+      },
+      "50": {
+        "support_height_mm": 50.0,
+        "geometry": {
+          "contact_centres_mm": [
+            [
+              8.572527594031472e-16,
+              14.0,
+              50.0
+            ],
+            [
+              -12.12435565298214,
+              -7.000000000000002,
+              50.0
+            ],
+            [
+              12.124355652982137,
+              -7.000000000000006,
+              50.0
+            ]
+          ],
+          "contact_plane_z_mm": 50.0,
+          "contact_triangle_inradius_mm": 7.0,
+          "leg_lean_from_vertical_deg": 13.309178695400478,
+          "bounds_mm": [
+            [
+              -36.0,
+              -36.0,
+              0.0
+            ],
+            [
+              36.0,
+              36.0,
+              50.0
+            ]
+          ],
+          "extents_mm": [
+            72.0,
+            72.0,
+            50.0
+          ],
+          "vertices": 1028,
+          "triangles": 2052,
+          "connected_components": 1,
+          "watertight": true,
+          "winding_consistent": true,
+          "volume_mm3": 19586.1950483463,
+          "full_solid_pla_mass_g": 24.286881859949414
+        },
+        "exports": {
+          "3mf": {
+            "sha256": "a70af4c1d7be7adc801790dc5e69a18d06a552fe22e7fb7c22956095145a4931",
+            "bytes": 28933,
+            "watertight": true,
+            "connected_components": 1,
+            "extents_mm": [
+              72.0,
+              72.0,
+              50.0
+            ]
+          },
+          "stl": {
+            "sha256": "2da7c59130b78a777fdb85b1aef5d3291adccb990bf7a75ca32bb30066eaade2",
+            "bytes": 102684,
+            "watertight": true,
+            "connected_components": 1,
+            "extents_mm": [
+              72.0,
+              72.0,
+              50.0
+            ]
+          }
+        }
+      },
+      "60": {
+        "support_height_mm": 60.0,
+        "geometry": {
+          "contact_centres_mm": [
+            [
+              8.572527594031472e-16,
+              14.0,
+              60.0
+            ],
+            [
+              -12.12435565298214,
+              -7.000000000000002,
+              60.0
+            ],
+            [
+              12.124355652982137,
+              -7.000000000000006,
+              60.0
+            ]
+          ],
+          "contact_plane_z_mm": 60.0,
+          "contact_triangle_inradius_mm": 7.0,
+          "leg_lean_from_vertical_deg": 11.017111618789212,
+          "bounds_mm": [
+            [
+              -36.0,
+              -36.0,
+              0.0
+            ],
+            [
+              36.0,
+              36.0,
+              60.0
+            ]
+          ],
+          "extents_mm": [
+            72.0,
+            72.0,
+            60.0
+          ],
+          "vertices": 1028,
+          "triangles": 2052,
+          "connected_components": 1,
+          "watertight": true,
+          "winding_consistent": true,
+          "volume_mm3": 20283.88838695578,
+          "full_solid_pla_mass_g": 25.15202159982517
+        },
+        "exports": {
+          "3mf": {
+            "sha256": "d1d857f3810d8eb544ec51ee5acd5c3178fb3f72e9b55ade7639c7a3fb1dae6c",
+            "bytes": 28889,
+            "watertight": true,
+            "connected_components": 1,
+            "extents_mm": [
+              72.0,
+              72.0,
+              60.0
+            ]
+          },
+          "stl": {
+            "sha256": "86792ad2ddd9e7ad18187006b583b6d96b0a0aa83a4302a968372b0167c64c40",
+            "bytes": 102684,
+            "watertight": true,
+            "connected_components": 1,
+            "extents_mm": [
+              72.0,
+              72.0,
+              60.0
+            ]
+          }
+        }
+      }
+    }
+  }
+}
