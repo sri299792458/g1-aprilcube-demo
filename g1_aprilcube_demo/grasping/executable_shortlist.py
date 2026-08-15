@@ -122,6 +122,7 @@ class OpenHandGeometry:
         hand_urdf_path: Path,
         approach_distance_m: float,
         numerical_tolerance_m: float,
+        support_plane_offset_below_object_m: float = 0.0,
     ) -> None:
         self.object_mesh = object_mesh
         self.object_vertices_h = np.column_stack(
@@ -147,7 +148,10 @@ class OpenHandGeometry:
         )
         self.approach_distance_m = float(approach_distance_m)
         self.numerical_tolerance_m = float(numerical_tolerance_m)
-        self.support_plane_object_z = float(object_mesh.bounds[0, 2])
+        support_offset = float(support_plane_offset_below_object_m)
+        if support_offset < 0.0:
+            raise ValueError("Support-plane offset must be non-negative")
+        self.support_plane_object_z = float(object_mesh.bounds[0, 2]) - support_offset
 
     def evaluate(self, object_T_G: np.ndarray) -> GeometryEvidence:
         hand = fcl.CollisionObject(
