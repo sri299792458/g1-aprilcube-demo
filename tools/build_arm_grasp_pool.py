@@ -7,13 +7,18 @@ the original, immutable ``object_T_G`` from each Isaac input and uses the
 ordinary simulator result only to decide whether that candidate passed.
 
 The output remains a lossless subset of the GraspGenX proposals: no pose is
-averaged, mirrored, shifted, or regenerated.
+averaged, mirrored, shifted, or regenerated.  It also preserves the exact
+simulated seven-joint hand state at ``closed_before_tug`` so a downstream
+executor can reproduce the candidate-specific closure instead of substituting
+one nominal closed-hand posture.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +81,39 @@ def family_index(families_doc: dict[str, Any]) -> tuple[dict[str, dict], dict[st
     return families, member_to_family
 
 
+def load_trace_records(path: Path) -> dict[str, dict[str, Any]]:
+    """Load one Isaac shard trace without changing candidate identity."""
+
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    records: dict[str, dict[str, Any]] = {}
+    with path.open() as stream:
+        for line_number, line in enumerate(stream, start=1):
+            record = json.loads(line)
+            candidate_id = str(record["candidate_id"])
+            if candidate_id in records:
+                raise ValueError(
+                    f"Duplicate trace candidate in {path}:{line_number}: "
+                    f"{candidate_id}"
+                )
+            records[candidate_id] = record
+    return records
+
+
+def phase_q(record: dict[str, Any], phase_name: str) -> dict[str, float]:
+    """Return the exact simulated Dex3 joint state at a named trace phase."""
+
+    phases = [phase for phase in record["phases"] if phase["name"] == phase_name]
+    if len(phases) != 1:
+        raise ValueError(
+            f"{record['candidate_id']} has {len(phases)} {phase_name!r} phases"
+        )
+    q = {str(name): float(value) for name, value in phases[0]["q"].items()}
+    if not q or not all(math.isfinite(value) for value in q.values()):
+        raise ValueError(f"Invalid {phase_name!r} joint state: {record['candidate_id']}")
+    return q
+
+
 def ordered_ids(
     families: dict[str, dict], candidates: dict[str, dict]
 ) -> list[str]:
@@ -132,8 +170,6 @@ def build(config_path: Path, hand_side: str) -> dict[str, Any]:
     config = yaml.safe_load(config_path.read_text())
     atlas_root = project_path(config["artifacts_root"])
     families_path = atlas_root / hand_side / "families.json"
-    import json
-
     families_doc = json.loads(families_path.read_text())
     families, member_to_family = family_index(families_doc)
 
@@ -145,6 +181,11 @@ def build(config_path: Path, hand_side: str) -> dict[str, Any]:
     candidates: dict[str, dict] = {}
     input_hashes: dict[str, str] = {}
     result_hashes: dict[str, str] = {}
+    trace_hashes: dict[str, str] = {}
+    closed_q_phase = "closed_before_tug"
+    if closed_q_phase not in config["physics"]["trace_phases"]:
+        raise ValueError(f"Physics traces do not include {closed_q_phase!r}")
+    expected_joint_names: set[str] | None = None
     input_paths = sorted((atlas_root / hand_side / "isaac_inputs").glob("shard_*.yaml"))
     if not input_paths:
         raise FileNotFoundError(f"No Isaac inputs under {atlas_root / hand_side}")
@@ -164,16 +205,26 @@ def build(config_path: Path, hand_side: str) -> dict[str, Any]:
             / f"dex3_rev1_{hand_side}"
             / f"{object_mesh_stem}.yaml"
         )
+        trace_path = (
+            atlas_root
+            / hand_side
+            / output_directory
+            / f"{shard_name}.contact_trace.jsonl"
+        )
         if not result_path.is_file():
             raise FileNotFoundError(result_path)
         input_doc = yaml.safe_load(input_path.read_text())
         result_doc = yaml.safe_load(result_path.read_text())
+        trace_records = load_trace_records(trace_path)
         input_grasps = input_doc["grasps"]
         result_grasps = result_doc["grasps"]
         if set(input_grasps) != set(result_grasps):
             raise ValueError(f"Input/result candidate mismatch in {shard_name}")
+        if set(input_grasps) != set(trace_records):
+            raise ValueError(f"Input/trace candidate mismatch in {shard_name}")
         input_hashes[str(input_path.relative_to(PROJECT_ROOT))] = sha256(input_path)
         result_hashes[str(result_path.relative_to(PROJECT_ROOT))] = sha256(result_path)
+        trace_hashes[str(trace_path.relative_to(PROJECT_ROOT))] = sha256(trace_path)
 
         for candidate_id, result in result_grasps.items():
             passed = float(result.get("confidence", 0.0)) == 1.0
@@ -186,19 +237,33 @@ def build(config_path: Path, hand_side: str) -> dict[str, Any]:
             if source_meta.get("candidate_id", candidate_id) != candidate_id:
                 raise ValueError(f"Candidate identity changed: {candidate_id}")
             result_meta = result.get("graspgenx_source") or {}
+            trace = trace_records[candidate_id]
+            if bool(trace["result"]["passed"]) != passed:
+                raise ValueError(f"Result/trace PASS mismatch: {candidate_id}")
             source_hash = source_meta.get("candidate_content_sha256")
             if result_meta.get("candidate_content_sha256") != source_hash:
                 raise ValueError(f"Candidate provenance changed: {candidate_id}")
+            if trace.get("candidate_content_sha256") != source_hash:
+                raise ValueError(f"Candidate trace provenance changed: {candidate_id}")
             if candidate_id in candidates:
                 raise ValueError(f"Duplicate passing candidate: {candidate_id}")
+            isaac_closed_q = phase_q(trace, closed_q_phase)
+            joint_names = set(isaac_closed_q)
+            if expected_joint_names is None:
+                expected_joint_names = joint_names
+            elif joint_names != expected_joint_names:
+                raise ValueError(f"Inconsistent closed-q joints: {candidate_id}")
             family_id = member_to_family[candidate_id]
             candidates[candidate_id] = {
                 "candidate_id": candidate_id,
                 "candidate_content_sha256": source_hash,
                 "family_id": family_id,
                 "representative_role": role_by_id.get(candidate_id),
-                "graspgenx_score": float(source_meta.get("confidence", source_grasp["confidence"])),
+                "graspgenx_score": float(
+                    source_meta.get("confidence", source_grasp["confidence"])
+                ),
                 "object_T_G": pose_from_grasp(source_grasp),
+                "isaac_closed_q": isaac_closed_q,
             }
 
     expected = int(families_doc["pass_count"])
@@ -228,8 +293,12 @@ def build(config_path: Path, hand_side: str) -> dict[str, Any]:
             "families_sha256": sha256(families_path),
             "isaac_input_sha256": input_hashes,
             "physics_result_sha256": result_hashes,
+            "contact_trace_sha256": trace_hashes,
             "pose_policy": "original_object_T_G_copied_from_isaac_input",
             "admission_policy": "ordinary_isaac_physics_confidence_equals_one",
+            "isaac_closed_q_policy": (
+                f"exact_simulated_joint_state_at_{closed_q_phase}"
+            ),
         },
         "candidates": output_candidates,
     }

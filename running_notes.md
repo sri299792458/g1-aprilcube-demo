@@ -3183,3 +3183,27 @@ mandatory. The outputs are
 the configuration and builder are
 `config/grasp_shortlists/cube_tripod_right_v1.yaml` and
 `tools/build_fixture_grasp_shortlists.py`.
+
+## 2026-08-15 — preserve candidate-specific Dex3 closure states
+
+The tripod-conditioned files preserve the immutable GraspGenX `object_T_G`
+poses, but candidate pose alone is not the complete execution contract for a
+seven-joint hand. The 3,178-record arm pool originally omitted the exact Dex3
+joint state reached by Isaac even though that state was present in the
+retained contact traces. Consequently, only the earlier 15-candidate
+executable shortlist carried its candidate-specific `isaac_closed_q` directly.
+
+`tools/build_arm_grasp_pool.py` now copies, for every retention-passing
+candidate, the exact seven-joint state recorded at `closed_before_tug`. This is
+the moment after the VIRAL-profile close has settled and established contact,
+before the artificial retention disturbances begin. It is deliberately not
+the nominal descriptor close target and not the final state after five tugs.
+The generated pool records hashes for both the Isaac result YAMLs and the
+contact traces, plus the named snapshot policy.
+
+The h50 fixture shortlist continues to contain 372 unchanged grasp poses. Each
+of those IDs must resolve to one exact seven-joint `isaac_closed_q` in
+`artifacts/grasp_atlas/cube40_viral_v1/right/arm_grasp_pool.yaml`; an automated
+test enforces that boundary. The pool remains offline physics evidence. The
+real robot still needs the selected candidate's closing posture mapped through
+the hardware bridge with joint limits and the intended closing controller.
