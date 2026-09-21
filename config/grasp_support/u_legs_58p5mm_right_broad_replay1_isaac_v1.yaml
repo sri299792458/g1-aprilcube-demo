@@ -1,0 +1,66 @@
+schema_version: 1
+experiment_id: u_legs_58p5mm_right_broad_replay1_isaac_v1
+
+report:
+  title: Right-Dex3 58.5 mm U broad-face discovered-pass replay
+  support_scope: the sole PASS discovered in the 98-trial 58.5 mm run
+
+support_atlas: artifacts/grasp_support/u_legs_58p5mm_right_broad_v1/support_atlas.json
+support_symmetry_class: broad_face
+
+selection:
+  trials:
+    - support_label: broad_plus_y_face_down
+      candidate_id: u_legs_58p5mm__seed_0000000169__sample_124
+
+object:
+  id: u_legs_58p5mm
+  mesh: generated/aprilcube_parts/u_legs_58p5mm/grasp_mesh.obj
+  mass_kg: 0.2112813226371547
+  mass_status: controlled_equal_to_45mm_u
+
+hand:
+  side: right
+  descriptor: dex3_rev1_right
+
+physics:
+  simulation_profile: viral_g1_43dof_92bf086
+  fps: 200.0
+  max_num_envs: 1
+  # The discovery trial was one member of a 98-environment layout. Replaying
+  # it alone changes the environment placement and solver ordering.
+  env_spacing_m: 1.5
+  contact_trace_mode: coarse
+  contact_trace_max_points_per_pair: 1
+  min_contact_groups: 2
+
+supported_pickup:
+  schema_version: 1
+  table:
+    size_m: [1.00, 1.00, 0.05]
+    top_z_m: 0.0
+    static_friction: 1.0
+    dynamic_friction: 1.0
+    restitution: 0.0
+  timing_s:
+    support_settle: 0.50
+    approach: 1.00
+    close_and_settle: 1.00
+    lift: 4.00
+    final_hold: 1.00
+  lift_distance_m: 0.20
+  pass_contract:
+    min_final_object_contact_digit_groups: 2
+    reject_any_hand_table_contact: true
+    reject_object_table_contact_during_final_hold: true
+
+capture:
+  enabled: true
+  fps: 12
+  layout: sequential
+
+outputs:
+  artifacts_root: artifacts/grasp_support/u_legs_58p5mm_right_broad_replay1_isaac_v1
+  report_json: artifacts/grasp_support/u_legs_58p5mm_right_broad_replay1_isaac_v1/report.json
+  report_markdown: docs/u_legs_58p5mm_broad_replay1.md
+  video: docs/assets/dex3_u_58p5mm_broad_pass_replay1.mp4

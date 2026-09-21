@@ -1,0 +1,79 @@
+schema_version: 1
+experiment_id: u_legs_right_upright_review2_isaac_v1
+
+report:
+  title: Right-Dex3 upright U twice-passing bucket visual review
+  support_scope: one twice-passing upright grasp from each robust proposal bucket
+
+support_atlas: artifacts/grasp_support/u_legs_right_v1/support_atlas.json
+support_symmetry_class: leg_ends
+
+# Visual selection only: highest GraspGenX score within each of the 14 buckets
+# that retained a PASS in both the 256-env discovery and 64-env replay. All 365
+# twice-passing records remain in the exhaustive replay report.
+selection:
+  trials:
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000169__sample_077}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000149__sample_180}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000039__sample_193}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000089__sample_055}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000059__sample_148}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000159__sample_145}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000059__sample_004}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000149__sample_039}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000029__sample_043}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000079__sample_217}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000139__sample_219}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000139__sample_224}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000089__sample_007}
+    - {support_label: upright_on_leg_ends, candidate_id: u_legs__seed_0000000029__sample_230}
+
+object:
+  id: u_legs
+  mesh: generated/aprilcube_parts/u_legs/grasp_mesh.obj
+  mass_kg: 0.2112813226371547
+  mass_status: provisional_volume_scaled
+
+hand:
+  side: right
+  descriptor: dex3_rev1_right
+
+physics:
+  simulation_profile: viral_g1_43dof_92bf086
+  fps: 200.0
+  max_num_envs: 14
+  env_spacing_m: 1.5
+  contact_trace_mode: coarse
+  contact_trace_max_points_per_pair: 1
+  min_contact_groups: 2
+
+supported_pickup:
+  schema_version: 1
+  table:
+    size_m: [1.00, 1.00, 0.05]
+    top_z_m: 0.0
+    static_friction: 1.0
+    dynamic_friction: 1.0
+    restitution: 0.0
+  timing_s:
+    support_settle: 0.50
+    approach: 1.00
+    close_and_settle: 1.00
+    lift: 4.00
+    final_hold: 1.00
+  lift_distance_m: 0.20
+  pass_contract:
+    min_final_object_contact_digit_groups: 2
+    reject_any_hand_table_contact: true
+    reject_object_table_contact_during_final_hold: true
+
+capture:
+  enabled: true
+  fps: 8
+  layout: sequential
+
+outputs:
+  artifacts_root: artifacts/grasp_support/u_legs_right_upright_review2_isaac_v1
+  report_json: artifacts/grasp_support/u_legs_right_upright_review2_isaac_v1/report.json
+  report_markdown: docs/u_legs_upright_supported_pickup_review2.md
+  video: docs/assets/dex3_u_upright_supported_pickup_review14.mp4

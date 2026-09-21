@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "hand_side": "right",
+  "parts": ["t_body", "u_legs", "cube_head"],
+  "geometry": {
+    "closing_sweep_samples": 9,
+    "coacd_threshold": 0.05,
+    "coacd_link_keywords": [
+      "thumb_2_link",
+      "middle_1_link",
+      "index_1_link"
+    ]
+  },
+  "simulation": {
+    "dt_seconds": 0.001,
+    "close_seconds": 2.0,
+    "hold_seconds": 0.5,
+    "collide_every_steps": 4,
+    "active_contact_max_separation_m": 0.0001,
+    "trace_interval_steps": 50,
+    "finger_kp": 2000.0,
+    "finger_kd": 200.0,
+    "object_mass_kg": 0.2,
+    "object_friction": 10.0,
+    "finger_friction": 3.0,
+    "object_armature": 0.002,
+    "contact_ke": 50000.0,
+    "contact_kd": 500.0,
+    "contact_kf": 1000.0,
+    "solver_iterations": 100,
+    "solver_line_search_iterations": 50,
+    "solver_impratio": 1000.0,
+    "contact_capacity": 65536
+  },
+  "acceptance": {
+    "max_physics_candidates_per_part": 16,
+    "max_object_translation_m": 0.03,
+    "max_opposing_normal_dot": -0.2,
+    "required_contact_groups": ["thumb", "opponent"]
+  }
+}

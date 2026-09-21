@@ -1,0 +1,67 @@
+schema_version: 1
+atlas_id: cube40_viral_v1
+
+object:
+  id: cube_head
+  mesh: third_party/aprilcube/models/dex3_safe_cube/mujoco/cube.obj
+  aprilcube_config: third_party/aprilcube/models/dex3_safe_cube/config.json
+  mass_kg: 0.030
+  mass_status: measured_print
+  mass_note: User-reported filament mass for the printed 40 mm R3 cube.
+  voxel_size_m: 0.040
+  fillet_radius_m: 0.003
+
+generation:
+  checkpoint_dir: third_party/GraspGenX/ext/graspgenx_checkpoints/release
+  descriptor: dex3_rev1_right
+  point_count: 3500
+  point_seed: 19
+  batch_size: 256
+  seeds: [19, 29, 39, 49, 59, 69, 79, 89, 99, 109, 119, 129, 139, 149, 159, 169]
+  grasp_threshold: -1.0
+  remove_outliers: false
+
+physics:
+  hands: [right]
+  simulation_profile: viral_g1_43dof_92bf086
+  qualification_output_directory: physics_outputs_body_scalar_v2
+  max_num_envs: 256
+  fps: 200.0
+  force_magnitude_g: 1.0
+  initial_grasp_duration_s: 1.0
+  object_contract:
+    collision_approximation: convexDecomposition
+    static_friction: 1.0
+    dynamic_friction: 1.0
+    restitution: 0.0
+    contact_offset_m: 0.002
+    rest_offset_m: 0.0
+    gravity_enabled: false
+    linear_damping: 0.0
+    angular_damping: 0.0
+    max_depenetration_velocity_mps: 1.0
+  tug_sequences:
+    - [0.5, [0, 0, 1], 1.0]
+    - [0.5, [0, 2, 1], 1.0]
+    - [0.5, [0, -2, 1], 1.0]
+    - [0.5, [2, 0, 1], 1.0]
+    - [0.5, [-2, 0, 1], 1.0]
+  min_contact_groups: 2
+  contact_trace_mode: coarse
+  contact_force_measurement: max_norm_over_object_filtered_body_pairs
+  trace_phases:
+    - closed_before_tug
+    - after_tug_1
+    - after_tug_2
+    - after_tug_3
+    - after_tug_4
+    - after_tug_5_final
+  detailed_point_budget_per_body_environment: 1
+
+surface_mapping:
+  mesh_tolerance_m: 0.0005
+  floating_point_tolerance_m: 0.000001
+
+raw_source_config: config/grasp_atlas/cube40_viral_v1.yaml
+raw_artifacts_root: artifacts/grasp_atlas/cube40_viral_v1
+artifacts_root: artifacts/grasp_atlas/cube40_viral_v1

@@ -1,0 +1,21 @@
+schema_version: 1
+observation_id: t_u_cube_nominal_v1
+stamp: simulation
+planning_frame: world
+table:
+  # Adjustable physical table; the proven upright-object setup uses z=0.70 m.
+  center: [0.55, 0.0, 0.68]
+  dimensions: [0.80, 0.80, 0.04]
+objects:
+  t_body:
+    # Upright on the bottom of its stem, yawed 20 degrees.
+    translation: [0.38, 0.25, 0.79]
+    quaternion_xyzw: [0.0, 0.0, 0.1736481777, 0.9848077530]
+  u_legs:
+    # Named qualified support: upright on both leg ends, yawed -25 degrees.
+    translation: [0.42, -0.06, 0.7675]
+    quaternion_xyzw: [0.0, 0.0, -0.2164396139, 0.9762960071]
+  cube_head:
+    # Resting directly on one face, yawed 10 degrees.
+    translation: [0.36, -0.29, 0.7225]
+    quaternion_xyzw: [0.0, 0.0, 0.0871557427, 0.9961946981]

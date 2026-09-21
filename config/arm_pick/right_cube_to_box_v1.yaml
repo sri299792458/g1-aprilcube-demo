@@ -1,0 +1,59 @@
+name: right_cube_to_box_v1
+
+assets:
+  - id: table
+    type: procedural_table
+    params:
+      {width: 0.8, depth: 0.8, height: 0.7, thickness: 0.04, leg_thickness: 0.05}
+    pose: {translation: [0.55, 0.0, 0.33], quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]}
+    support_label: table_top
+    collision: cuboid_from_extents
+
+  # A deliberately generous first-milestone target: 220 mm square inside a
+  # right-arm workspace, compared with a 45 mm cube. The real box pose will
+  # come from its fiducial; this pose is only the simulated observation.
+  - id: bin
+    type: procedural_bin
+    params:
+      {width: 0.22, depth: 0.22, height: 0.10, thickness: 0.015, angle: 0.15}
+    pose: {translation: [0.48, -0.25, 0.69], quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]}
+    # The open container must remain open in the planner. A single AABB would
+    # turn it into a solid block; this creates a floor plus four flared walls.
+    collision: open_bin_primitives
+
+object_slot:
+  parent: table
+  surface: table_top
+  translation_offset: [-0.25, -0.04, 0.0]
+  upright: true
+  mesh_scale: 1.0
+  # This is a deterministic stand-in for runtime AprilTag localization, not a
+  # prepared pose. Different --seed values move and yaw the cube while keeping
+  # it inside the tested right-arm/table region and outside the box.
+  randomize:
+    extents_xy: [0.14, 0.12]
+    yaw_range_deg: [-180.0, 180.0]
+
+task:
+  # This is the task contract. The selected grasp fixes object_T_tool;
+  # geometry generates permissible object poses inside the box, and cuRobo
+  # chooses a reachable implied tool pose from the complete goal set.
+  placement_goal:
+    relation: drop_inside
+    target_asset: bin
+    orientation_policy: free_axis_aligned
+    max_candidates: 24
+    containment_margin_m: 0.01
+    # This is a drop, not contact placement: release the cube above the open
+    # rim and let gravity finish the relation. The 12 cm endpoint is the first
+    # tested height with a collision-free right-arm/tool solution.
+    release_clearance_above_rim_m: 0.12
+    xy_offset_fractions: [[0.0, 0.0]]
+  move_to_bin_frames: 300
+
+extra_collision: []
+
+visual:
+  show_ground_grid: true
+  background_color: [0.95, 0.95, 0.95]
+  camera: {eye: [1.12, -1.12, 1.20], target: [0.42, -0.12, 0.78]}

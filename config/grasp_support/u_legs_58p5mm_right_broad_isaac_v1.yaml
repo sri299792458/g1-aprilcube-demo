@@ -1,0 +1,59 @@
+schema_version: 1
+experiment_id: u_legs_58p5mm_right_broad_isaac_v1
+
+report:
+  title: Right-Dex3 58.5 mm U broad-face supported-pickup qualification
+  support_scope: every broad-face geometry-clear proposal from 4,096 raw candidates
+
+support_atlas: artifacts/grasp_support/u_legs_58p5mm_right_broad_v1/support_atlas.json
+support_symmetry_class: broad_face
+
+object:
+  id: u_legs_58p5mm
+  mesh: generated/aprilcube_parts/u_legs_58p5mm/grasp_mesh.obj
+  mass_kg: 0.2112813226371547
+  mass_status: controlled_equal_to_45mm_u
+
+hand:
+  side: right
+  descriptor: dex3_rev1_right
+
+physics:
+  simulation_profile: viral_g1_43dof_92bf086
+  fps: 200.0
+  max_num_envs: 256
+  env_spacing_m: 1.5
+  contact_trace_mode: coarse
+  contact_trace_max_points_per_pair: 1
+  min_contact_groups: 2
+
+supported_pickup:
+  schema_version: 1
+  table:
+    size_m: [1.00, 1.00, 0.05]
+    top_z_m: 0.0
+    static_friction: 1.0
+    dynamic_friction: 1.0
+    restitution: 0.0
+  timing_s:
+    support_settle: 0.50
+    approach: 1.00
+    close_and_settle: 1.00
+    lift: 4.00
+    final_hold: 1.00
+  lift_distance_m: 0.20
+  pass_contract:
+    min_final_object_contact_digit_groups: 2
+    reject_any_hand_table_contact: true
+    reject_object_table_contact_during_final_hold: true
+
+capture:
+  enabled: false
+  fps: 8
+  layout: sequential
+
+outputs:
+  artifacts_root: artifacts/grasp_support/u_legs_58p5mm_right_broad_isaac_v1
+  report_json: artifacts/grasp_support/u_legs_58p5mm_right_broad_isaac_v1/report.json
+  report_markdown: docs/u_legs_58p5mm_broad_supported_pickup.md
+  video: docs/assets/dex3_u_58p5mm_broad_supported_pickup.mp4

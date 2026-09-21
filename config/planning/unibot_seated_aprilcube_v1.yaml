@@ -1,0 +1,78 @@
+schema_version: 1
+scene_id: unibot_seated_aprilcube_v1
+
+frames:
+  planning_frame: base_link
+  source_frame: gripper_base
+  contract: >-
+    For the recorded start state, the official G1 FK from base_link to
+    torso_link reproduces UniBot state_torso. The two names therefore denote
+    the same numeric frame for this reference scene.
+
+robot:
+  curobo_config: third_party/GraspGenX/ext/curobo/curobo/content/configs/robot/unitree_g1.yml
+  urdf: third_party/GraspGenX/ext/curobo/curobo/content/assets/robot/g1/g1_29dof_with_hand_rev_1_0.urdf
+  seated_state_reference: config/setup/unibot_arrangeplates_reference_v1.yaml
+  hand_state_reference: config/dex3_rev1_descriptor.json
+  observed_episode_index: 0
+  observed_frame_index: 0
+  active_joint_groups:
+    right_arm:
+      - right_shoulder_pitch_joint
+      - right_shoulder_roll_joint
+      - right_shoulder_yaw_joint
+      - right_elbow_joint
+      - right_wrist_roll_joint
+      - right_wrist_pitch_joint
+      - right_wrist_yaw_joint
+    left_arm:
+      - left_shoulder_pitch_joint
+      - left_shoulder_roll_joint
+      - left_shoulder_yaw_joint
+      - left_elbow_joint
+      - left_wrist_roll_joint
+      - left_wrist_pitch_joint
+      - left_wrist_yaw_joint
+  tool_frames:
+    right: right_hand_palm_link
+    left: left_hand_palm_link
+
+table:
+  source_field: table_plane_reference.horizontal_surface_z_at_parent_origin_m
+  # The UniBot-derived height intersects the larger open Dex3 at the observed
+  # Dex1 arm pose. Lowering the adjustable table by 35 mm is the smallest
+  # millimetre-rounded change that gives the exact current G1/Dex3 collision
+  # geometry at least 10 mm of clearance while preserving the seated posture.
+  source_top_z_reference_m: 0.04152595
+  dex3_clearance_adjustment_m: -0.035
+  planned_top_z_m: 0.00652595
+  minimum_robot_clearance_m: 0.01
+  center_xy_m: [0.47, 0.0]
+  size_xy_m: [0.72, 0.82]
+  thickness_m: 0.04
+
+# These are explicit initial task poses, not fixed grasp assumptions. At
+# runtime AprilTags replace them. T and U lie on their broad faces; there are
+# no trays or cradles.
+parts:
+  t_body:
+    mesh: generated/aprilcube_parts/t_body/grasp_mesh.obj
+    xy_m: [0.57, -0.23]
+    quaternion_xyzw: [0.7071067811865475, 0.0, 0.0, 0.7071067811865476]
+    color_rgb: [42, 157, 143]
+  u_legs:
+    mesh: generated/aprilcube_parts/u_legs/grasp_mesh.obj
+    xy_m: [0.58, 0.21]
+    quaternion_xyzw: [0.7071067811865475, 0.0, 0.0, 0.7071067811865476]
+    color_rgb: [233, 196, 106]
+  cube_head:
+    mesh: generated/aprilcube_parts/cube_head/grasp_mesh.obj
+    xy_m: [0.43, 0.0]
+    quaternion_xyzw: [0.0, 0.0, 0.25881904510252074, 0.9659258262890683]
+    color_rgb: [231, 111, 81]
+
+visual:
+  camera_eye_m: [1.22, -1.35, 0.88]
+  camera_target_m: [0.30, 0.0, -0.08]
+  image_size_px: [1440, 960]
+  output: docs/assets/unibot_seated_aprilcube_scene_v1.png

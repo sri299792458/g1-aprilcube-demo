@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "descriptor_names": {
+    "right": "dex3_rev1_right",
+    "left": "dex3_rev1_left"
+  },
+  "unitree_source": {
+    "repository": "https://github.com/unitreerobotics/xr_teleoperate",
+    "commit": "7dc9aa1a6edbf4a9f4f887d8ab6fc449ea5135f6",
+    "asset_root": "assets/unitree_hand",
+    "license": "Apache-2.0",
+    "files": {
+      "LICENSE": "63762ccebdb836cf2bae6b1ae0de526e7499dbf45e554c790ebc45942cce3e36",
+      "assets/unitree_hand/unitree_dex3_right.urdf": "4e36e939466d386524d38079f8e2ff84d9dd4d3a7f8db6319374067970ad7075",
+      "assets/unitree_hand/unitree_dex3_left.urdf": "569e4d8ca55b1b76e51cd41df3cd6f655c5475a3e02e908f673f999759c51bd0",
+      "assets/unitree_hand/meshes/right_hand_palm_link.STL": "86c0b231cc44477d64a6493e5a427ba16617a00738112dd187c652675b086fb9",
+      "assets/unitree_hand/meshes/right_hand_thumb_0_link.STL": "544298d0ea1088f5b276a10cc6a6a9e533efdd91594955fdc956c46211d07f83",
+      "assets/unitree_hand/meshes/right_hand_thumb_1_link.STL": "0a9a820da8dd10f298778b714f1364216e8a5976f4fd3a05689ea26327d44bf6",
+      "assets/unitree_hand/meshes/right_hand_thumb_2_link.STL": "3f1bfb37668e8f61801c8d25f171fa1949e08666be86c67acad7e0079937cc45",
+      "assets/unitree_hand/meshes/right_hand_middle_0_link.STL": "12ab4300c95e437e834f9aef772b3b431c671bf34338930b52ad11aef73bbd0d",
+      "assets/unitree_hand/meshes/right_hand_middle_1_link.STL": "c9c34efce4563cacdcfd29fc838a982976d40f5442c71219811dcbbf3923a33d",
+      "assets/unitree_hand/meshes/right_hand_index_0_link.STL": "12ab4300c95e437e834f9aef772b3b431c671bf34338930b52ad11aef73bbd0d",
+      "assets/unitree_hand/meshes/right_hand_index_1_link.STL": "c9c34efce4563cacdcfd29fc838a982976d40f5442c71219811dcbbf3923a33d",
+      "assets/unitree_hand/meshes/left_hand_palm_link.STL": "23a486b75bd78a9bf03cec25d84d87f97f3dae038cf21a743b6d469b337e4004",
+      "assets/unitree_hand/meshes/left_hand_thumb_0_link.STL": "a90c721661c0622685488a3c74d1e122c7da89242d3a1daef75edb83422d05e0",
+      "assets/unitree_hand/meshes/left_hand_thumb_1_link.STL": "445c54a45bc13ce36001556f66bc0f49c83cb40321205ae4d676bb2874325684",
+      "assets/unitree_hand/meshes/left_hand_thumb_2_link.STL": "3d8dbe5085acfc213d21aa8b0782e89cd79084e9678f3a85fc7b04a86b029db5",
+      "assets/unitree_hand/meshes/left_hand_middle_0_link.STL": "6b35f2f77211d5a366f0b9a4e47c4ee35e536731266f1a34e9efa12db579b892",
+      "assets/unitree_hand/meshes/left_hand_middle_1_link.STL": "9e315ebc8a7a0cb98e033985b586b20d81cf8aa761181ae61ce56fcb14077a06",
+      "assets/unitree_hand/meshes/left_hand_index_0_link.STL": "6b35f2f77211d5a366f0b9a4e47c4ee35e536731266f1a34e9efa12db579b892",
+      "assets/unitree_hand/meshes/left_hand_index_1_link.STL": "9e315ebc8a7a0cb98e033985b586b20d81cf8aa761181ae61ce56fcb14077a06"
+    }
+  },
+  "canonical_frame": {
+    "definition": "+Z follows palm +X toward the two main fingers and +X follows palm +Y, preserving the released Unitree GraspGenX pose convention; the terminal three-finger pinch midpoint is laterally centered at canonical x=0. The current zero-joint open posture is L-shaped, so its instantaneous thumb/opponents gap is not axis-aligned in this frame.",
+    "lateral_origin_derivation": {
+      "method": "midpoint between the whole-mesh centroids of the closed thumb distal link and the mean closed index/middle distal links",
+      "computed_at_build_time": true,
+      "axis": "canonical_x"
+    },
+    "right": {
+      "rpy": [-1.5707963267948966, -1.5707963267948966, 0.0],
+      "rotation": [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]
+    },
+    "left": {
+      "rpy": [1.5707963267948966, -1.5707963267948966, 0.0],
+      "rotation": [[0.0, -1.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]]
+    }
+  },
+  "finger_profile": {
+    "status": "provisional_hardware_demonstrated_starting_profile",
+    "source_repository": "https://github.com/NVlabs/GR00T-VisualSim2Real",
+    "source_commit": "92bf0863d4a9b6ee29849736152b7769bd45c49c",
+    "source_path": "gr00t/rl/config/exp/loco_manip/walk_stand_place_grasp_turn_homie.yaml",
+    "right": {
+      "open": {
+        "right_hand_thumb_0_joint": 0.0,
+        "right_hand_thumb_1_joint": 0.0,
+        "right_hand_thumb_2_joint": 0.0,
+        "right_hand_middle_0_joint": 0.0,
+        "right_hand_middle_1_joint": 0.0,
+        "right_hand_index_0_joint": 0.0,
+        "right_hand_index_1_joint": 0.0
+      },
+      "close": {
+        "right_hand_thumb_0_joint": 0.0,
+        "right_hand_thumb_1_joint": -0.5984,
+        "right_hand_thumb_2_joint": -0.99731429,
+        "right_hand_middle_0_joint": 0.8976,
+        "right_hand_middle_1_joint": 0.99731429,
+        "right_hand_index_0_joint": 0.8976,
+        "right_hand_index_1_joint": 0.99731429
+      }
+    },
+    "left": {
+      "open": {
+        "left_hand_thumb_0_joint": 0.0,
+        "left_hand_thumb_1_joint": 0.0,
+        "left_hand_thumb_2_joint": 0.0,
+        "left_hand_middle_0_joint": 0.0,
+        "left_hand_middle_1_joint": 0.0,
+        "left_hand_index_0_joint": 0.0,
+        "left_hand_index_1_joint": 0.0
+      },
+      "close": {
+        "left_hand_thumb_0_joint": 0.0,
+        "left_hand_thumb_1_joint": 0.5984,
+        "left_hand_thumb_2_joint": 0.99731429,
+        "left_hand_middle_0_joint": -0.8976,
+        "left_hand_middle_1_joint": -0.99731429,
+        "left_hand_index_0_joint": -0.8976,
+        "left_hand_index_1_joint": -0.99731429
+      }
+    }
+  },
+  "sweep_volume": {
+    "status": "physics_validated_release_checkpoint_proxy",
+    "derivation": "Use the released unitree_g1 sweep vector unchanged as the checkpoint-compatible morphology proxy while retaining the exact rev-1.0 URDF, canonical-to-palm transform, and open/close trajectory. The prior visually fitted vector inverted the checkpoint's aperture/depth semantics for the L-shaped open posture and produced 16/120 Isaac retention. The released proxy produced 472/480 across seeds 19, 29, 39, and 49. A geometry-derived semantic aperture variant produced 467/480, confirming the same diagnosis.",
+    "old_descriptor_commit": "19a03c00d19aeaf052d0f6801f0041982d676e8a",
+    "extents": [0.10, 0.06, 0.04],
+    "offset": [0.0, 0.0, 0.07],
+    "extents2": [0.04, 0.06, 0.04],
+    "offset2": [0.007, 0.0, 0.06],
+    "diagnostic_current_geometry_semantic_apertures_m": {
+      "open": 0.08472795534133908,
+      "half_open": 0.038542665372007276
+    },
+    "validation": {
+      "object": "45 mm AprilCube cube",
+      "validator": "released GraspDataGen Isaac/PhysX close-and-tug test with at least two of three finger chains in contact",
+      "hand": "current right Dex3",
+      "seeds": [19, 29, 39, 49],
+      "retained": 472,
+      "tested": 480,
+      "canonical_mirror_replay": {
+        "seed": 19,
+        "same_object_T_G_candidates": 120,
+        "current_right_retained": 118,
+        "current_left_retained": 116
+      }
+    }
+  }
+}

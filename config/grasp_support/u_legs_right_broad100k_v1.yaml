@@ -1,0 +1,41 @@
+schema_version: 1
+support_atlas_id: u_legs_right_broad100k_v1
+
+object:
+  id: u_legs
+  mesh: generated/aprilcube_parts/u_legs/grasp_mesh.obj
+  geometry_config: config/aprilcube_parts/u_legs.yaml
+
+hand:
+  side: right
+  descriptor: dex3_rev1_right
+  open_collision_mesh: third_party/GraspGenX/assets/x_grippers/dex3_rev1_right/coll_mesh.obj
+
+proposals:
+  raw_directories:
+    - artifacts/grasp_atlas/u_legs_v1/raw
+    - artifacts/grasp_atlas/u_legs_broad100k_extension_v1/raw
+  expected_count: 100000
+
+supports:
+  include_symmetry_classes: [broad_face]
+  # Keep the complete physical support declaration, then explicitly select the
+  # broad-face class above. This prevents an ad hoc orientation convention.
+  orientations:
+    - {table_up_object: "+X", label: left_outer_leg_down, symmetry_class: outer_leg_side}
+    - {table_up_object: "-X", label: right_outer_leg_down, symmetry_class: outer_leg_side}
+    - {table_up_object: "+Y", label: broad_minus_y_face_down, symmetry_class: broad_face}
+    - {table_up_object: "-Y", label: broad_plus_y_face_down, symmetry_class: broad_face}
+    - {table_up_object: "+Z", label: upright_on_leg_ends, symmetry_class: leg_ends}
+    - {table_up_object: "-Z", label: inverted_on_hip_bridge, symmetry_class: hip_bridge}
+
+geometric_gates:
+  pregrasp_offset_local_z_m: -0.10
+  approach_corridor_step_m: 0.001
+  table_penetration_tolerance_m: 0.000001
+  semantic_surface_tolerance_m: 0.0005
+
+outputs:
+  artifact: artifacts/grasp_support/u_legs_right_broad100k_v1/support_atlas.json
+  report: docs/u_legs_broad100k_support_conditioned_grasp_audit.md
+  support_visual: docs/assets/u_legs_broad100k_tabletop_supports.png

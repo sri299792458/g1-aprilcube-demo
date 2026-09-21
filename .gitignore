@@ -1,0 +1,28 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+generated/
+artifacts/
+*.dmp.zip
+*.dmp.zip.toml
+crash_*.txt
+
+# GraspGenX manages model and gripper assets under ext/. They are large,
+# reproducible external data and must not become project source.
+third_party/GraspGenX/ext/
+
+# External survey checkout with its own 8+ GB environment. It is reference
+# material, not a source dependency of this prototype.
+third_party/lightning-grasp/
+
+# Private working records and internal design/literature reviews.
+/.local/
+/running_notes.md
+/docs/execution_stack.md
+/docs/runtime_curobo_assembly_spec.md
+/docs/dex3_aprilcube_grasp_atlas_spec.md
+/docs/hero_curobo_dex3_audit.md
+/docs/lightning_grasp_u_assessment.md
+/docs/references/

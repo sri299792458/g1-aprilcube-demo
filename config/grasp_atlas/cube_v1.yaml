@@ -1,0 +1,48 @@
+schema_version: 1
+atlas_id: cube_v1
+
+object:
+  id: cube_head
+  mesh: generated/aprilcube_parts/cube_head/grasp_mesh.obj
+  aprilcube_config: generated/aprilcube_parts/cube_head/config.json
+  mass_kg: 0.030
+  voxel_size_m: 0.045
+  fillet_radius_m: 0.003
+
+generation:
+  checkpoint_dir: third_party/GraspGenX/ext/graspgenx_checkpoints/release
+  descriptor: dex3_rev1_right
+  point_count: 3500
+  point_seed: 19
+  batch_size: 256
+  seeds: [19, 29, 39, 49, 59, 69, 79, 89, 99, 109, 119, 129, 139, 149, 159, 169]
+  grasp_threshold: -1.0
+  remove_outliers: false
+
+physics:
+  hands: [right]
+  max_num_envs: 256
+  fps: 250.0
+  force_magnitude_g: 1.0
+  initial_grasp_duration_s: 1.0
+  tug_sequences:
+    - [0.5, [0, 0, 1], 1.0]
+    - [0.5, [0, 2, 1], 1.0]
+    - [0.5, [0, -2, 1], 1.0]
+    - [0.5, [2, 0, 1], 1.0]
+    - [0.5, [-2, 0, 1], 1.0]
+  min_contact_groups: 2
+  trace_phases:
+    - closed_before_tug
+    - after_tug_1
+    - after_tug_2
+    - after_tug_3
+    - after_tug_4
+    - after_tug_5_final
+  detailed_point_budget_per_body_environment: 64
+
+surface_mapping:
+  mesh_tolerance_m: 0.0005
+  floating_point_tolerance_m: 0.000001
+
+artifacts_root: artifacts/grasp_atlas/cube_v1

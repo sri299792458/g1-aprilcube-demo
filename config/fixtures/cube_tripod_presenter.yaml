@@ -1,0 +1,31 @@
+schema_version: 1
+name: cube_tripod_presenter
+
+target:
+  asset: third_party/aprilcube/models/dex3_safe_cube/cube.3mf
+  size_mm: 40.0
+  edge_radius_mm: 3.0
+
+geometry:
+  support_height_mm: 50.0
+  base:
+    diameter_mm: 72.0
+    height_mm: 4.0
+  legs:
+    count: 3
+    diameter_mm: 5.5
+    foot_radius_mm: 25.0
+    support_radius_mm: 14.0
+    first_angle_deg: 90.0
+  contact_pads:
+    diameter_mm: 4.0
+    height_mm: 1.5
+
+manufacturing:
+  material: PLA
+  nozzle_mm: 0.4
+  layer_height_mm: 0.2
+  print_orientation: base_down
+  supports: false
+  height_test_variants_mm: [40.0, 50.0, 60.0]
+  plate_centre_spacing_mm: 90.0
