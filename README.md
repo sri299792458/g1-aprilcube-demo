@@ -156,7 +156,7 @@ audit to `artifacts/dex3_rev1_descriptor/audit.json` (generated locally).
 
 ```text
 GraspGenX 0e8768ec776e1d21b3ac63d67a5995a959954af9
-AprilCube fc18d50c8bbaadc9646dfd0aa5fcd2404a9868c5
+AprilCube 020777cca9ad9beecc7b3a95444ab6b0736d8b2a
 GraspDataGen d27c8486494c3f042810eb6641980ab1954b73c8
 ```
 
@@ -168,7 +168,9 @@ git clone --recurse-submodules <this-repository>
 
 For an existing clone, run `git submodule update --init --recursive`. These
 are the current source pins; individual older experiment reports retain the
-revisions under which those results were recorded.
+revisions under which those results were recorded. The AprilCube pin preserves
+the original `fc18d50` implementation and assets with private notes removed
+from its history.
 
 The GraspGenX checkout downloads model checkpoints and gripper descriptions on
 first import. Its Unitree hand meshes are stored with Git LFS; verify that the
