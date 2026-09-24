@@ -1,30 +1,25 @@
 # G1 AprilCube Demo
 
-Offline grasp-generation, qualification and assembly-planning tools for the
-Unitree G1 and Dex3 hands. The assembly demonstrations in this repository are
-kinematic plans and simulated grasp studies. Physical cube pickup/stacking and
-its control pipeline live in
-[g1-dex3-tabletop](https://github.com/sri299792458/g1-dex3-tabletop).
+Offline grasp generation, qualification and assembly planning for the Unitree
+G1 and Dex3 hands, built on GraspGen-X, AprilCube and CuRobo.
 
-The repository has passed the **current Dex3 / 45 mm cube intrinsic
-grasp gate**. It contains pinned GraspGenX and AprilCube dependencies,
-reproducible descriptors for the official current Unitree Dex3, the real
-T/U/cube print geometry, and Isaac/PhysX-qualified neural grasp candidates.
-There is no hand-authored grasp.
+[![Dex3 grasp retention during a simulated disturbance](docs/assets/dex3-simulated-retention-demo.jpg)](https://sri299792458.github.io/g1-research-docs/manipulation/grasp-atlas.html)
+
+*Watch a rendered replay of an Isaac/PhysX grasp-retention trial. This is a
+simulation result; physical stacking and its control pipeline live in
+[g1-dex3-tabletop](https://github.com/sri299792458/g1-dex3-tabletop).*
+
+**[Grasp generation and qualification](https://sri299792458.github.io/g1-research-docs/manipulation/grasp-atlas.html)** ·
+[Full G1 guide](https://sri299792458.github.io/g1-research-docs/) ·
+[Documentation source](https://github.com/sri299792458/g1-research-docs)
+
+The repository contains Dex3 hand descriptors, generated grasp candidates,
+simulation-based qualification, and assembly plans for marker-bearing parts.
+The current Dex3 / **45 mm cube intrinsic grasp gate** passed; assembly
+demonstrations are kinematic plans and simulated grasp studies. The guide
+explains what each stage checks and which results transfer to physical work.
 
 ## Follow the implementation
-
-```mermaid
-flowchart TD
-  accTitle: Offline grasp and assembly pipeline
-  accDescr: The hand descriptor and object geometry produce immutable neural grasp proposals. Intrinsic simulation and support checks supply qualified pools for assembly planning. Plans are saved for kinematic replay; hardware execution is a separate system.
-  D["Hand descriptor + object geometry"] --> G["GraspGenX proposals"]
-  G --> I["Intrinsic Isaac qualification"]
-  I --> S["Support and approach checks"]
-  S --> P["Grasp pools + observed part poses"]
-  P --> A["cuRobo assembly planning"]
-  A --> R["Saved trajectories and kinematic replay"]
-```
 
 | Task | Entry point |
 | --- | --- |
